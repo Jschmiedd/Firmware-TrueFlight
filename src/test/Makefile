@@ -229,6 +229,43 @@ flight_mixer_unittest :=  \
 		$(USER_DIR)/common/maths.c
 
 
+motor_health_unittest_SRC := \
+		$(USER_DIR)/flight/motor_health.c
+
+motor_health_unittest_DEFINES := \
+		USE_MOTOR_HEALTH= \
+		MOTOR_HEALTH_PURE=
+
+
+speeder_unittest_SRC := \
+		$(USER_DIR)/flight/speeder.c \
+		$(USER_DIR)/pg/speeder.c \
+		$(USER_DIR)/pg/pg.c \
+		$(USER_DIR)/common/crc.c \
+		$(USER_DIR)/common/streambuf.c \
+		$(USER_DIR)/build/debug.c \
+		$(USER_DIR)/common/maths.c
+
+speeder_unittest_DEFINES := \
+		USE_SPEEDER=
+
+
+power_guard_unittest_SRC := \
+		$(USER_DIR)/flight/power_guard.c \
+		$(USER_DIR)/pg/power_guard.c \
+		$(USER_DIR)/pg/pg.c \
+		$(USER_DIR)/common/crc.c \
+		$(USER_DIR)/common/streambuf.c \
+		$(USER_DIR)/build/debug.c \
+		$(USER_DIR)/common/maths.c
+
+power_guard_unittest_DEFINES := \
+		USE_POWER_GUARD= \
+		USE_DSHOT= \
+		USE_DSHOT_TELEMETRY= \
+		USE_ESC_SENSOR=
+
+
 gps_conversion_unittest_SRC := \
 		$(USER_DIR)/common/gps_conversion.c
 
@@ -302,6 +339,8 @@ osd_unittest_SRC := \
 
 osd_unittest_DEFINES := \
 		USE_OSD= \
+		USE_POWER_GUARD= \
+		USE_MOTOR_HEALTH= \
 		USE_GPS= \
 		USE_RTC_TIME= \
 		USE_ADC_INTERNAL=
@@ -446,6 +485,8 @@ telemetry_crsf_unittest_SRC := \
 		$(USER_DIR)/fc/runtime_config.c
 
 telemetry_crsf_unittest_DEFINES := \
+		USE_CRSF_ESC_TEMP= \
+		USE_ESC_SENSOR= \
 		FLASH_SIZE=128 \
 		__TARGET__="TEST" \
 		__REVISION__="revision"
@@ -483,7 +524,8 @@ telemetry_ibus_unittest_SRC := \
 telemetry_mavlink_mission_unittest_SRC := \
 		$(USER_DIR)/telemetry/mavlink_mission.c \
 		$(USER_DIR)/pg/flight_plan.c \
-		$(USER_DIR)/pg/autopilot.c
+		$(USER_DIR)/pg/autopilot.c \
+		$(USER_DIR)/pg/mav_mission.c
 
 telemetry_mavlink_mission_unittest_DEFINES := \
 		USE_GPS= \

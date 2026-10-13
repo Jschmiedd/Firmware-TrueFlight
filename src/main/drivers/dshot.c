@@ -48,6 +48,8 @@
 #include "drivers/nvic.h"
 
 
+#include "flight/motor_health.h"
+
 #include "pg/rpm_filter.h"
 
 #include "rx/rx.h"
@@ -158,6 +160,12 @@ FAST_DATA_ZERO_INIT static float minMotorFrequencyHz;
 FAST_DATA_ZERO_INIT static float erpmToHz;
 FAST_DATA_ZERO_INIT static float dshotRpmAverage;
 FAST_DATA_ZERO_INIT static float dshotRpm[MAX_SUPPORTED_MOTORS];
+// TrueGlide: cycles since the last new telemetry frame, per motor
+FAST_DATA_ZERO_INIT static uint8_t dshotLastSeq[MAX_SUPPORTED_MOTORS];
+FAST_DATA_ZERO_INIT static uint8_t dshotStaleFrames[MAX_SUPPORTED_MOTORS];
+#ifdef USE_MOTOR_HEALTH
+FAST_DATA_ZERO_INIT static motorHealthFallback_t telemetryFallback;
+#endif
 FAST_DATA_ZERO_INIT static bool edtAlwaysDecode;
 
 // Lookup table for extended telemetry type decoding
@@ -281,6 +289,16 @@ FAST_CODE_NOINLINE void updateDshotTelemetry(void)
         dshotTelemetryType_t type;
         uint32_t value;
 
+        // TrueGlide: drivers keep the previous raw value when a frame is invalid or missing,
+        // count the cycles without a new frame to know how old the speed is
+        const uint8_t seq = dshotTelemetryState.motorState[k].rawValueSeq;
+        if (seq != dshotLastSeq[k]) {
+            dshotLastSeq[k] = seq;
+            dshotStaleFrames[k] = 0;
+        } else if (dshotStaleFrames[k] < UINT8_MAX) {
+            dshotStaleFrames[k]++;
+        }
+
         dshot_decode_telemetry_value(k, &value, &type);
 
         if (value != DSHOT_TELEMETRY_INVALID) {
@@ -301,13 +319,39 @@ FAST_CODE_NOINLINE void updateDshotTelemetry(void)
 
     // update filtered rotation speed of motors for features (e.g. "RPM filter")
     minMotorFrequencyHz = FLT_MAX;
+#ifdef USE_MOTOR_HEALTH
+    // TrueGlide: speed of motors whose telemetry is stale, following the other motors (dshot_telemetry_fallback)
+    float erpmNow[MAX_SUPPORTED_MOTORS];
+    float erpmUsed[MAX_SUPPORTED_MOTORS];
+    bool freshNow[MAX_SUPPORTED_MOTORS];
+    const bool fallback = motorHealthTelemetryFallbackEnabled();
+    if (fallback) {
+        for (unsigned motor = 0; motor < dshotMotorCount; motor++) {
+            erpmNow[motor] = getDshotErpm(motor);
+            freshNow[motor] = isDshotMotorTelemetryFresh(motor);
+        }
+        motorHealthFallbackStep(&telemetryFallback, erpmNow, freshNow, dshotMotorCount, erpmUsed);
+    }
+#endif
     for (unsigned motor = 0; motor < dshotMotorCount; motor++) {
-        motorFrequencyHz[motor] = pt1FilterApply(&motorFreqLpf[motor], erpmToHz * getDshotErpm(motor));
+        float erpm = getDshotErpm(motor);
+#ifdef USE_MOTOR_HEALTH
+        if (fallback) {
+            erpm = erpmUsed[motor];
+        }
+#endif
+        motorFrequencyHz[motor] = pt1FilterApply(&motorFreqLpf[motor], erpmToHz * erpm);
         minMotorFrequencyHz = MIN(minMotorFrequencyHz, motorFrequencyHz[motor]);
     }
 
     // Set state to processed
     dshotTelemetryState.rawValueState = DSHOT_RAW_VALUE_STATE_PROCESSED;
+}
+
+bool isDshotMotorTelemetryFresh(uint8_t motorIndex)
+{
+    return motorIndex < MAX_SUPPORTED_MOTORS && isDshotMotorTelemetryActive(motorIndex)
+        && dshotStaleFrames[motorIndex] < DSHOT_TELEMETRY_STALE_FRAMES;
 }
 
 uint16_t getDshotErpm(uint8_t motorIndex)

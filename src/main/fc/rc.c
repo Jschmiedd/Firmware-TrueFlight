@@ -46,6 +46,7 @@
 #include "flight/gps_rescue.h"
 #include "flight/pid.h"
 #include "flight/pid_init.h"
+#include "flight/speeder.h"
 
 #include "pg/autopilot.h"
 
@@ -694,6 +695,12 @@ FAST_CODE void processRcCommand(void)
         if (rxConfig()->fpvCamAngleDegrees && IS_RC_MODE_ACTIVE(BOXFPVANGLEMIX) && !FLIGHT_MODE(HEADFREE_MODE)) {
             scaleRawSetpointToFpvCamAngle();
         }
+#ifdef USE_SPEEDER
+        // speeder: roll / yaw follow the transition angle (speeder_fpv_mix)
+        if (!FLIGHT_MODE(HEADFREE_MODE)) {
+            speederApplyFpvMix(&rawSetpoint[ROLL], &rawSetpoint[YAW]);
+        }
+#endif
     }
 
 #ifdef USE_RC_SMOOTHING_FILTER

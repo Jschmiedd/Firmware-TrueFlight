@@ -1,7 +1,4 @@
-# Code of Conduct
+# Règles de conduite
 
-The Betaflight code of conduct applies to all Betaflight repositories and
-community spaces. It is maintained centrally in the organisation's
-[.github repository](https://github.com/betaflight/.github/blob/main/CODE_OF_CONDUCT.md).
-
-To report unacceptable behaviour, email **conduct@betaflight.com**.
+Échanges courtois et utiles : pas d'insultes, de harcèlement ni de contenu discriminatoire. Les messages qui ne
+respectent pas ces règles sont supprimés. Contact : talktruefpv@gmail.com.

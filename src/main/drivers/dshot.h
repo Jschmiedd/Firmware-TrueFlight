@@ -38,6 +38,7 @@
 
 #define DSHOT_TELEMETRY_NOEDGE          (0xfffe)
 #define DSHOT_TELEMETRY_INVALID         (0xffff)
+#define DSHOT_TELEMETRY_STALE_FRAMES    4       // TrueGlide: cycles without a new frame before the speed is stale
 
 #define MIN_GCR_EDGES                   (7)
 #define MAX_GCR_EDGES                   (22)
@@ -102,6 +103,7 @@ bool dshotPwmDevInit(motorDevice_t *device, const motorDevConfig_t *motorConfig)
 
 typedef struct dshotTelemetryMotorState_s {
     uint16_t rawValue;
+    uint8_t rawValueSeq;    // TrueGlide: incremented each time a valid frame is stored in rawValue
     uint16_t telemetryData[DSHOT_TELEMETRY_TYPE_COUNT];
     uint8_t telemetryTypes;
     uint8_t maxTemp;
@@ -153,4 +155,6 @@ float erpmToRpm(uint32_t erpm);
 
 int16_t getDshotTelemetryMotorInvalidPercent(uint8_t motorIndex);
 bool getDshotSensorData(escSensorData_t *dest, int motorIndex);
+// TrueGlide: a new valid frame was received in the last DSHOT_TELEMETRY_STALE_FRAMES cycles
+bool isDshotMotorTelemetryFresh(uint8_t motorIndex);
 void validateAndfixMotorOutputReordering(uint8_t *array, const unsigned size);

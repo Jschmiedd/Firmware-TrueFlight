@@ -54,7 +54,26 @@ CFLAGS_DISABLED         ?=
 # Things that need to be maintained as the source changes
 #
 
-FORKNAME      = betaflight
+FORKNAME      = trueglide
+
+# TrueGlide : modèle de firmware
+#   STANDARD (défaut, ou TRUEGLIDE) : Betaflight + ajouts TrueGlide, identique sans réglage
+#   TRUENAV           : STANDARD + navigation GPS complète (missions AUTOPILOT, ALTHOLD, POSHOLD, GPS RESCUE, MAVLink)
+#   TRUENAV_LIGHT     : TRUENAV sans les fonctions de course (drones de navigation)
+MODELE        ?= STANDARD
+# TRUEGLIDE is the name shown to pilots for the base model (TRUEFLIGHT: its former name)
+ifneq ($(filter $(MODELE),TRUEGLIDE TRUEFLIGHT),)
+override MODELE := STANDARD
+endif
+ifeq ($(MODELE),TRUENAV)
+FORKNAME      = truenav
+OPTIONS      += TRUEGLIDE_NAV
+else ifeq ($(MODELE),TRUENAV_LIGHT)
+FORKNAME      = truenav_light
+OPTIONS      += TRUEGLIDE_NAV TRUEGLIDE_NAV_LIGHT
+else ifneq ($(MODELE),STANDARD)
+$(error MODELE inconnu : $(MODELE) (TRUEGLIDE, TRUENAV ou TRUENAV_LIGHT))
+endif
 
 # Working directories
 # ROOT_DIR is the full path to the directory containing this Makefile

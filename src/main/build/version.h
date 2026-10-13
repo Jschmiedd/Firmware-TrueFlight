@@ -22,7 +22,17 @@
 
 #include "common/utils.h"
 
-#define FC_FIRMWARE_NAME            "Betaflight"
+// TrueGlide: name shown to the pilot (CLI "version" and "diff all" header, OLED screen, radio via CRSF), one per model
+#if defined(TRUEGLIDE_NAV_LIGHT)
+#define FC_FIRMWARE_NAME            "TRUENAV_LIGHT"
+#elif defined(TRUEGLIDE_NAV)
+#define FC_FIRMWARE_NAME            "TRUENAV"
+#else
+#define FC_FIRMWARE_NAME            "TRUEGLIDE"
+#endif
+// Name of the base firmware, kept where other tools identify the board by it: blackbox log headers (log viewers pick
+// the decoder from it) and USB descriptors (drivers)
+#define FC_BASE_FIRMWARE_NAME       "Betaflight"
 #define FC_FIRMWARE_IDENTIFIER      "BTFL"
 
 #define FC_CALVER_BASE_YEAR 2000

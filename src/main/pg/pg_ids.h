@@ -167,6 +167,14 @@
 #define PG_DRONECAN_DNA_CONFIG      567
 #define PG_OSD_NAV_MAP_CONFIG       568
 
+// TrueGlide additions, kept far from the Betaflight range to avoid collisions
+#define PG_POWER_GUARD_CONFIG       3000
+#define PG_SPEEDER_CONFIG           3001
+#define PG_MOTOR_HEALTH_CONFIG      3002
+#define PG_MAV_MISSION_CONFIG       3003
+// 3004: former TrueGlide pusher configuration (removed), not to be reused
+#define PG_TF_TELEMETRY_CONFIG      3005
+
 // TODO TBC
 #define PG_DISPLAY_PORT_FBOSD_CONFIG 566
 

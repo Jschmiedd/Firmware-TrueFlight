@@ -330,6 +330,8 @@ typedef enum {
     OSD_WARNING_LOAD,
     OSD_WARNING_POSHOLD_FAILED,
     OSD_WARNING_AUTOPILOT_ABORT,
+    OSD_WARNING_POWER_GUARD,        // TrueGlide: throttle limited (ESC temperature or current)
+    OSD_WARNING_MOTOR_RESTART,      // TrueGlide: stalled / desynced motor restarted
     OSD_WARNING_COUNT // MUST BE LAST
 } osdWarningsFlags_e;
 

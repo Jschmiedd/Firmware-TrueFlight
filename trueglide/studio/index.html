@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrueGlide Studio</title>
+<link rel="icon" href="logo_talktruefpv_128.png" type="image/png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --fond: #f6f7f9; --carte: #ffffff; --texte: #1d2330; --doux: #5b6577; --bord: #d9dee7;
+    --accent: #4d7c0f; --accent-texte: #ffffff; --ok: #1f7a3a; --alerte: #b42318; --conseil: #9a6700; --code: #0f1420; --code-texte: #e6edf3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fond: #0d0d0d; --carte: #171717; --texte: #ececec; --doux: #a3a3a3; --bord: #2e2e2e;
+      --accent: #c6f700; --accent-texte: #0d0d0d; --ok: #4cc27a; --alerte: #ff6b5e; --conseil: #e3b341; --code: #0a0e17;
+    }
+  }
+  :root[data-theme="dark"] {
+    --fond: #0d0d0d; --carte: #171717; --texte: #ececec; --doux: #a3a3a3; --bord: #2e2e2e;
+    --accent: #c6f700; --accent-texte: #0d0d0d; --ok: #4cc27a; --alerte: #ff6b5e; --conseil: #e3b341; --code: #0a0e17;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--fond); color: var(--texte); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 18px 16px 0; max-width: 1100px; margin: 0 auto; }
+  header .titre { display: flex; align-items: center; gap: 14px; }
+  header .nom { flex: 1; min-width: 0; }
+  header .logo { width: 64px; height: 64px; flex: none; }
+  button.theme { flex: none; border: 1px solid var(--bord); background: var(--carte); color: var(--texte); padding: 7px 12px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; }
+  @media (max-width: 600px) {
+    header .titre { flex-wrap: wrap; align-items: flex-start; } header .logo { width: 52px; height: 52px; }
+    header .nom { flex: 1 1 220px; } header h1 { font-size: 20px; } button.theme { margin-left: 66px; }
+  }
+  header h1 { margin: 0; font-size: 22px; }
+  header p { margin: 4px 0 0; color: var(--doux); }
+  nav.onglets { max-width: 1100px; margin: 14px auto 0; padding: 0 16px; display: flex; gap: 6px; flex-wrap: wrap; }
+  nav.onglets button { border: 1px solid var(--bord); background: var(--carte); color: var(--texte); padding: 8px 14px; border-radius: 8px; cursor: pointer; font: inherit; }
+  nav.onglets button[aria-selected="true"] { background: var(--accent); color: var(--accent-texte); border-color: var(--accent); }
+  main { max-width: 1100px; margin: 0 auto; padding: 14px 16px 40px; }
+  section.page { display: none; } section.page.active { display: block; }
+  .carte { background: var(--carte); border: 1px solid var(--bord); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .carte h2 { margin: 0 0 10px; font-size: 17px; }
+  .grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+  label { display: block; font-size: 13px; color: var(--doux); }
+  input, select, textarea { width: 100%; margin-top: 4px; padding: 8px; border: 1px solid var(--bord); border-radius: 8px; background: var(--fond); color: var(--texte); font: inherit; }
+  textarea { min-height: 160px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  .case { display: flex; align-items: center; gap: 8px; color: var(--texte); font-size: 14px; margin-top: 22px; }
+  .case input { width: auto; margin: 0; }
+  button.action { background: var(--accent); color: var(--accent-texte); border: 0; padding: 9px 16px; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 600; }
+  button.second { background: transparent; color: var(--accent); border: 1px solid var(--accent); padding: 8px 14px; border-radius: 8px; cursor: pointer; font: inherit; }
+  .boutons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  pre.cli { background: var(--code); color: var(--code-texte); padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 13px; max-height: 420px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--bord); vertical-align: top; }
+  th { color: var(--doux); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .tableau { overflow-x: auto; }
+  #table-points input { min-width: 6.5em; } #table-points select { min-width: 11.5em; }
+  .msg { padding: 8px 10px; border-radius: 8px; margin: 6px 0; border-left: 4px solid; background: var(--fond); }
+  .msg.alerte { border-color: var(--alerte); } .msg.conseil { border-color: var(--conseil); } .msg.ok { border-color: var(--ok); } .msg.note { border-color: var(--accent); }
+  .petit { font-size: 13px; color: var(--doux); }
+  #carte-mission { height: 340px; border-radius: 8px; margin-top: 10px; }
+  .chiffres { display: flex; gap: 18px; flex-wrap: wrap; }
+  .chiffres div { min-width: 120px; } .chiffres b { display: block; font-size: 20px; }
+  @media (max-width: 600px) { .grille { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="titre">
+  <img class="logo" src="logo_talktruefpv_128.png" alt="Talk True FPV">
+  <div class="nom"><h1>TrueGlide Studio</h1>
+  <p>par Talk True FPV · Réglage de départ selon ton drone, analyse de configuration et missions GPS pour le firmware TrueGlide (base Betaflight 2026.6.2).</p></div>
+  <button class="theme" id="theme" type="button" title="Changer l'apparence">Apparence : auto</button>
+  </div>
+</header>
+<nav class="onglets" role="tablist">
+  <button role="tab" aria-selected="true" data-page="reglage">Réglage du drone</button>
+  <button role="tab" aria-selected="false" data-page="analyse">Analyser ma configuration</button>
+  <button role="tab" aria-selected="false" data-page="navigation">Navigation GPS</button>
+  <button role="tab" aria-selected="false" data-page="aide">Mode d'emploi</button>
+</nav>
+<main>
+<!-- ====================== RÉGLAGE ====================== -->
+<section class="page active" id="page-reglage">
+  <div class="carte">
+    <h2>Mon drone</h2>
+    <div class="grille">
+      <label>Taille d'hélice (pouces)<input id="pouces" type="number" min="1.2" max="15" step="0.1" value="7"></label>
+      <label>KV des moteurs<input id="kv" type="number" min="100" max="30000" step="10" value="1300"></label>
+      <label>Batterie (cellules S)<input id="cellules" type="number" min="1" max="14" step="1" value="6"></label>
+      <label>Masse en vol (g)<input id="masse" type="number" min="15" max="20000" step="1" value="1000"></label>
+      <label title="Fiche moteur « 12N14P » : 12 bobines (N), 14 aimants (P). Ou compter les aimants collés dans la cloche. Une erreur fausse le filtre RPM et le ralenti dynamique ; l'analyse des journaux le mesure.">Pôles des moteurs = nombre d'aimants (« 12N14P » : 14)<input id="poles" type="number" min="4" max="64" step="2" value="14"></label>
+      <label>Type de châssis
+        <select id="chassis">
+          <option value="quadx">Quad X</option>
+          <option value="hexa">Hexa X</option>
+          <option value="x8">X8 coaxial (octo)</option>
+          <option value="quadx_pusher">Quad X pusher (moteurs à l'envers)</option>
+        </select></label>
+      <label>Style de vol
+        <select id="style">
+          <option value="freestyle">Freestyle</option>
+          <option value="cinema">Cinématique (images fluides)</option>
+          <option value="longue_portee">Longue portée</option>
+          <option value="course">Course</option>
+          <option value="speeder">Speeder (vitesse, transition 90° → vol rapide)</option>
+        </select></label>
+      <label>Châssis
+        <select id="qualite">
+          <option value="normal">Normal</option>
+          <option value="bruyant">Souple ou vibrant</option>
+          <option value="rigide">Très rigide, moteurs neufs</option>
+        </select></label>
+      <label>Fréquence PWM des ESC
+        <select id="pwmEsc"><option value="24">24 kHz (défaut)</option><option value="48">48 kHz ou plus</option></select></label>
+      <label>Calibre ESC en continu (A, facultatif)<input id="courantEsc" type="number" min="0" max="300" step="1" placeholder="ex. 45"></label>
+      <label>Carte de vol (FC)<input id="carte" list="liste-cartes" placeholder="ex. SPEEDYBEEF405MINI" autocomplete="off"></label>
+      <label>Firmware des ESC<select id="esc"></select></label>
+      <label class="case" id="bloc-serie"><input id="serieBranchee" type="checkbox"> Fil de télémétrie série des ESC branché</label>
+      <label class="case"><input id="capteurCourant" type="checkbox"> Capteur de courant sur la FC</label>
+      <datalist id="liste-cartes"></datalist>
+      <p class="petit" id="info-carte" style="grid-column:1/-1;margin:0"></p>
+    </div>
+    <div class="grille" id="bloc-speeder" hidden style="margin-top:12px">
+      <label>Angle de croisière (°, 10 à 80)<input id="spAngle" type="number" min="10" max="80" value="60"></label>
+      <label>Vitesse de transition (°/s)<input id="spVitesse" type="number" min="5" max="180" value="30"></label>
+      <label class="case"><input id="spMix" type="checkbox"> Roulis / lacet tournés avec la transition</label>
+    </div>
+    <div class="boutons"><button class="action" id="calculer">Calculer le réglage</button></div>
+  </div>
+  <div id="resultat"></div>
+</section>
+
+<!-- ====================== ANALYSE ====================== -->
+<section class="page" id="page-analyse">
+  <div class="carte">
+    <h2>Ma configuration actuelle</h2>
+    <p class="petit">Dans le Configurator, onglet CLI : taper <code>diff all</code>, copier tout le texte et le coller ici.
+      Les caractéristiques du drone sont celles de l'onglet « Réglage du drone ».</p>
+    <textarea id="diff" placeholder="# version&#10;# Betaflight / STM32F405 (S405) 2025.12.2 ..."></textarea>
+    <div class="boutons"><button class="action" id="analyser">Analyser</button></div>
+  </div>
+  <div id="resultat-analyse"></div>
+</section>
+
+<!-- ====================== NAVIGATION ====================== -->
+<section class="page" id="page-navigation">
+  <div class="carte">
+    <h2>Mission GPS (mode AUTOPILOT)</h2>
+    <p class="msg conseil">Les missions demandent le firmware <b>TRUENAV</b> ou <b>TRUENAV_LIGHT</b> (fichiers
+      <code>truenav_…</code>). Le firmware <b>TRUEGLIDE</b> de base, comme Betaflight, n'a pas la commande <code>waypoint</code>.</p>
+    <p class="petit">Cliquer sur la carte pour ajouter un point (Internet nécessaire pour la carte), ou remplir le tableau.
+      Le firmware travaille en altitude au-dessus du niveau de la mer : indiquer l'altitude du terrain de décollage.</p>
+    <div class="grille">
+      <label>Altitude du terrain (m au-dessus de la mer)<input id="altSol" type="number" step="0.1" placeholder="ex. 375"></label>
+      <label>Hauteur par défaut des points (m)<input id="hauteurDefaut" type="number" value="30" min="0" max="500"></label>
+      <label>Vitesse par défaut (m/s)<input id="vitesseDefaut" type="number" value="5" min="0.5" max="50" step="0.5"></label>
+    </div>
+    <div id="carte-mission"></div>
+    <div class="tableau" style="margin-top:10px"><table id="table-points">
+      <thead><tr><th>#</th><th>Latitude</th><th>Longitude</th><th>Hauteur (m)</th><th>Vitesse (m/s)</th><th>Type</th><th>Attente (s)</th><th>Motif</th><th></th></tr></thead>
+      <tbody></tbody></table></div>
+    <div class="boutons"><button class="second" id="ajouter-point">Ajouter un point</button></div>
+  </div>
+  <div class="carte">
+    <h2>Sécurité et autopilote</h2>
+    <div class="grille">
+      <label>Vitesse max en navigation (m/s)<input id="apVitesse" type="number" value="8" min="1" max="50"></label>
+      <label>Inclinaison max (°)<input id="apAngle" type="number" value="40" min="10" max="70"></label>
+      <label>Rayon d'arrivée sur un point (m)<input id="apRayon" type="number" value="5" min="1" max="50"></label>
+      <label>Altitude de retour GPS (m)<input id="grAlt" type="number" value="40" min="5" max="1000"></label>
+      <label>Vitesse de retour GPS (m/s)<input id="grVitesse" type="number" value="8" min="1" max="30"></label>
+      <label>Satellites minimum<input id="grSats" type="number" value="8" min="5" max="50"></label>
+      <label>Barrière virtuelle (m, 0 = sans)<input id="apBarriere" type="number" value="0" min="0" max="10000"></label>
+      <label>Si la barrière est franchie<select id="apBarriereAction"><option value="RTH">Retour au départ</option><option value="LAND">Atterrir</option></select></label>
+      <label>Si la radio est perdue en mission<select id="apPerteRadio"><option value="DISABLE">Quitter la mission (failsafe normal)</option><option value="CONTINUE">Continuer la mission</option><option value="LAND">Atterrir</option></select></label>
+      <label class="case"><input id="fsGps" type="checkbox" checked> Failsafe = retour GPS</label>
+    </div>
+    <div class="boutons"><button class="action" id="generer-mission">Générer les commandes</button></div>
+  </div>
+  <div id="resultat-mission"></div>
+</section>
+
+<!-- ====================== AIDE ====================== -->
+<section class="page" id="page-aide">
+  <div class="carte">
+    <h2>Mode d'emploi</h2>
+    <ol>
+      <li>Flasher le firmware TrueGlide avec Betaflight Configurator (onglet « Flasher », « Charger le firmware [local] », fichier <code>trueglide_…hex</code>, case « Effacement complet »).</li>
+      <li>Refaire la configuration de base : ports, récepteur, modes (dont <b>SPEEDER</b> si besoin), OSD.</li>
+      <li>Dans Studio : décrire le drone, « Calculer le réglage », « Copier », puis coller dans l'onglet CLI du Configurator et valider avec Entrée (la commande <code>save</code> est incluse).</li>
+      <li><b>Premier essai sans hélices</b> : onglet Moteurs, vérifier l'ordre et le sens des moteurs. Puis hélices, stationnaire court, et toucher les moteurs.</li>
+      <li>Ajuster avec les curseurs de l'onglet PID du Configurator (le curseur maître d'abord, par pas de 5).</li>
+    </ol>
+    <p class="petit">Les réglages ESC (AM32, BLHeli_32, BLHeli_S, Bluejay) se font comme avant avec ESC Configurator ou BLHeliSuite, par la FC (passthrough) : TrueGlide garde cette fonction de Betaflight.</p>
+    <h2>D'où viennent les chiffres</h2>
+    <div id="sources"></div>
+  </div>
+</section>
+</main>
+
+<script>
+  // Apparence : auto (selon l'ordinateur), clair ou sombre ; mémorisée dans ce navigateur si possible
+  (function () {
+    var ordre = ['auto', 'clair', 'sombre'], attr = { clair: 'light', sombre: 'dark' };
+    var choix = 'auto';
+    try { choix = localStorage.getItem('tf_theme') || 'auto'; } catch (e) { }
+    function appliquer() {
+      if (attr[choix]) document.documentElement.setAttribute('data-theme', attr[choix]);
+      else document.documentElement.removeAttribute('data-theme');
+      document.getElementById('theme').textContent = 'Apparence : ' + choix;
+    }
+    document.getElementById('theme').addEventListener('click', function () {
+      choix = ordre[(ordre.indexOf(choix) + 1) % ordre.length];
+      try { localStorage.setItem('tf_theme', choix); } catch (e) { }
+      appliquer();
+    });
+    appliquer();
+  })();
+</script>
+<script src="js/settings_db.js"></script>
+<script src="js/cartes.js"></script>
+<script src="js/tune.js"></script>
+<script src="js/analyse.js"></script>
+<script src="js/nav.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  function echap(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function nombre(id) { var v = parseFloat($(id).value); return isNaN(v) ? null : v; }
+
+  // ---- onglets ----
+  document.querySelectorAll('nav.onglets button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('nav.onglets button').forEach(function (x) { x.setAttribute('aria-selected', x === b); });
+      document.querySelectorAll('section.page').forEach(function (s) { s.classList.toggle('active', s.id === 'page-' + b.dataset.page); });
+      if (b.dataset.page === 'navigation') initCarte();
+    });
+  });
+
+  // ---- mémoire locale des saisies (facultative) ----
+  // ---- cartes et ESC ----
+  $('esc').innerHTML = Object.keys(TFTune.ESC).map(function (k) { return '<option value="' + k + '">' + echap(TFTune.ESC[k].nom) + '</option>'; }).join('');
+  $('liste-cartes').innerHTML = Object.keys(TF_CARTES).sort().map(function (n) { return '<option value="' + n + '">' + echap(TF_CARTES[n].mcu) + '</option>'; }).join('');
+  function carteChoisie() { var n = $('carte').value.trim().toUpperCase(); return TF_CARTES[n] ? { nom: n, c: TF_CARTES[n] } : null; }
+  var courantTouche = false;
+  $('capteurCourant').addEventListener('change', function () { courantTouche = true; });
+  function majCarteEsc() {
+    var k = carteChoisie(), caps = TFTune.ESC[$('esc').value];
+    $('bloc-serie').hidden = !caps.serie;
+    if (k) {
+      var f = TFTune.frequenceGyro(k.c.g);
+      $('info-carte').textContent = k.nom + ' : ' + k.c.mcu + ', gyroscope ' + (k.c.g.join(' / ') || '?') + (f ? ' (' + f + ' Hz)' : '') +
+        ', ' + k.c.m + ' sorties moteur' + (k.c.courant ? ', capteur de courant' : ', sans capteur de courant') + '.';
+      if (!courantTouche) $('capteurCourant').checked = k.c.courant;
+    } else {
+      $('info-carte').textContent = $('carte').value ? 'Carte inconnue : nom exact de Betaflight (liste proposée en tapant).' : '';
+    }
+  }
+  $('carte').addEventListener('input', majCarteEsc);
+  $('esc').addEventListener('change', majCarteEsc);
+
+  var CHAMPS = ['pouces', 'kv', 'cellules', 'masse', 'poles', 'chassis', 'style', 'qualite', 'pwmEsc', 'courantEsc', 'carte', 'esc', 'serieBranchee', 'capteurCourant', 'spAngle', 'spVitesse', 'spMix'];
+  try {
+    var memo = JSON.parse(localStorage.getItem('tf-drone') || '{}');
+    CHAMPS.forEach(function (k) { if (k in memo) { if ($(k).type === 'checkbox') $(k).checked = memo[k]; else $(k).value = memo[k]; } });
+  } catch (e) { /* stockage indisponible : sans mémoire */ }
+  majCarteEsc();
+  function memoriser() {
+    try { var o = {}; CHAMPS.forEach(function (k) { o[k] = $(k).type === 'checkbox' ? $(k).checked : $(k).value; }); localStorage.setItem('tf-drone', JSON.stringify(o)); } catch (e) { }
+  }
+
+  function drone() {
+    return {
+      pouces: nombre('pouces'), kv: nombre('kv'), cellules: nombre('cellules'), masse: nombre('masse'), poles: nombre('poles') || 14,
+      chassis: $('chassis').value, style: $('style').value, qualite: $('qualite').value, pwmEsc: Number($('pwmEsc').value),
+      esc: $('esc').value, carte: (carteChoisie() || {}).c || null, serieBranchee: $('serieBranchee').checked,
+      capteurCourant: $('capteurCourant').checked, courantEsc: nombre('courantEsc') || 0,
+      speeder: { angle: nombre('spAngle'), vitesse: nombre('spVitesse'), mix: $('spMix').checked }
+    };
+  }
+  function majSpeeder() { $('bloc-speeder').hidden = $('style').value !== 'speeder'; }
+  $('style').addEventListener('change', majSpeeder); majSpeeder();
+
+  function messages(liste, classe) { return liste.map(function (t) { return '<div class="msg ' + classe + '">' + echap(t) + '</div>'; }).join(''); }
+  function blocCli(texte, nomFichier) {
+    var id = 'cli' + Math.random().toString(36).slice(2);
+    return '<pre class="cli" id="' + id + '">' + echap(texte) + '</pre><div class="boutons">' +
+      '<button class="action" data-copier="' + id + '">Copier</button>' +
+      '<button class="second" data-telecharger="' + id + '" data-nom="' + nomFichier + '">Enregistrer en .txt</button></div>';
+  }
+  document.addEventListener('click', function (ev) {
+    var c = ev.target.dataset && ev.target.dataset.copier;
+    if (c) {
+      var t = $(c).textContent;
+      (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { ev.target.textContent = 'Copié'; },
+        function () { var r = document.createRange(); r.selectNodeContents($(c)); var s = getSelection(); s.removeAllRanges(); s.addRange(r); ev.target.textContent = 'Sélectionné : Ctrl+C'; });
+    }
+    var d = ev.target.dataset && ev.target.dataset.telecharger;
+    if (d) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([$(d).textContent + '\n'], { type: 'text/plain' }));
+      a.download = ev.target.dataset.nom; a.click(); URL.revokeObjectURL(a.href);
+    }
+  });
+
+  // ---- réglage ----
+  var dernier = null;
+  $('calculer').addEventListener('click', function () {
+    memoriser();
+    var e = drone(), out = $('resultat');
+    try { dernier = TFTune.recommander(e); } catch (err) { out.innerHTML = '<div class="carte">' + messages([err.message], 'alerte') + '</div>'; return; }
+    var r = dernier, p = r.pids, ph = r.physique;
+    var erreurs = TFTune.verifier(r.reglages, TF_SETTINGS);
+    var h = '<div class="carte"><h2>Réglage proposé</h2>';
+    h += '<div class="chiffres">' +
+      '<div><span class="petit">Protocole moteur</span><b>' + r.protocole.protocole + '</b></div>' +
+      (r.protocole.boucle ? '<div><span class="petit">Boucle PID</span><b>' + (r.protocole.boucle / 1000).toFixed(1).replace('.0', '') + ' kHz</b></div>' : '') +
+      '<div><span class="petit">Correction puissance</span><b>' + (ph.puissanceRelative === null ? 'sans' : '× ' + ph.facteur.toFixed(2)) + '</b></div>' +
+      (ph.puissanceRelative === null ? '' : '<div><span class="petit">Puissance / référence ' + e.pouces + '" (estim.)</span><b>' + (ph.puissanceRelative > 0 ? '+' : '') + ph.puissanceRelative + ' %</b></div>') +
+      '<div><span class="petit">Points d\'appui</span><b>' + (ph.extrapole ? 'extrapolé' : 'interpolé') + '</b></div></div>';
+    h += '<div class="tableau"><table><thead><tr><th>Axe</th><th>P</th><th>I</th><th>D</th><th>D max</th><th>FF</th></tr></thead><tbody>';
+    [['Roulis', p.roll], ['Tangage', p.pitch], ['Lacet', p.yaw]].forEach(function (x) {
+      h += '<tr><td>' + x[0] + '</td><td class="num">' + x[1].P + '</td><td class="num">' + x[1].I + '</td><td class="num">' + x[1].D + '</td><td class="num">' + x[1].Dmax + '</td><td class="num">' + x[1].F + '</td></tr>';
+    });
+    h += '</tbody></table></div><p class="petit">PID que le firmware calculera à partir des curseurs (même formule que <code>simplified_tuning apply</code>).</p>';
+    h += messages(erreurs, 'alerte') + messages(r.avertissements, 'conseil') + messages(r.notes, 'note');
+    h += '</div><div class="carte"><h2>À coller dans l\'onglet CLI</h2>' + blocCli(TFTune.versCli(r, 'TrueGlide Studio : ' + e.pouces + '" ' + TFTune.STYLES[e.style].nom), 'trueglide_reglage.txt') + '</div>';
+    h += '<div class="carte"><h2>Détail des réglages</h2><div class="tableau"><table><thead><tr><th>Réglage</th><th>Valeur</th><th>Pourquoi</th></tr></thead><tbody>' +
+      r.reglages.map(function (x) { return '<tr><td><code>' + x.nom + '</code></td><td class="num">' + echap(x.valeur) + '</td><td>' + echap(x.pourquoi) + '</td></tr>'; }).join('') +
+      '</tbody></table></div><p class="petit">Références les plus proches : ' + echap(r.sources.join(', ')) + '.</p></div>';
+    out.innerHTML = h;
+  });
+
+  // ---- analyse ----
+  $('analyser').addEventListener('click', function () {
+    var brut = $('diff').value, cfg = TFAnalyse.lire(brut), e = drone(), out = $('resultat-analyse');
+    if (!Object.keys(cfg.set).length && !cfg.version) { out.innerHTML = '<div class="carte">' + messages(['Aucune ligne « set » ni en-tête de version trouvée : coller la sortie complète de « diff all ».'], 'alerte') + '</div>'; return; }
+    // conversion d'une version plus ancienne : les contrôles portent sur la configuration convertie
+    var mig = TFAnalyse.migrer(brut, TF_SETTINGS);
+    var conversion = '';
+    if (mig.traduits.length || mig.retires.length || mig.invalides.length || mig.inversionD) {
+      conversion = '<div class="carte"><h2>Conversion pour TrueGlide</h2>' +
+        (mig.version ? '<p class="petit">Configuration de Betaflight ' + echap(mig.version) + ' convertie pour TrueGlide (base Betaflight 2026.6.2). ' +
+          'Après le flash, coller ces commandes à la place de l\'ancien diff.</p>' :
+          '<p class="petit">Version inconnue (pas de ligne « # Betaflight / … ») : les réglages D sont gardés tels quels. Coller la sortie complète de « diff all » pour une conversion sûre.</p>') +
+        (mig.inversionD ? '<div class="msg conseil">Avant 2025.12, d_roll était le D maximum et d_min_roll le D de base ; depuis, d_roll est le D de base et d_max_roll le maximum. Les valeurs ont été remises dans le bon ordre.</div>' : '') +
+        (mig.traduits.length ? '<div class="tableau"><table><thead><tr><th>Ancien</th><th>TrueGlide</th><th>Valeur</th><th>Pourquoi</th></tr></thead><tbody>' +
+          mig.traduits.map(function (t) { return '<tr><td><code>' + t.ancien + '</code></td><td><code>' + t.nom + '</code></td><td class="num">' + echap(t.valeur) + '</td><td>' + echap(t.note) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '') +
+        (mig.retires.length ? '<h2 style="margin-top:14px">Retirés (' + mig.retires.length + ')</h2>' + messages(mig.retires.map(function (r) { return r.nom + ' : ' + r.raison; }), 'conseil') : '') +
+        (mig.invalides.length ? '<h2 style="margin-top:14px">À corriger à la main (' + mig.invalides.length + ')</h2>' + messages(mig.invalides.map(function (r) { return r.nom + ' (' + r.ancien + ') : ' + r.raison; }), 'alerte') : '') +
+        '<h2 style="margin-top:14px">Configuration convertie</h2>' + blocCli(['# Converti par TrueGlide Studio depuis Betaflight ' + (mig.version || '?')].concat(mig.lignes, ['save']).join('\n'), 'trueglide_conversion.txt') + '</div>';
+      cfg = TFAnalyse.lire((cfg.version ? '# Betaflight / ' + (cfg.mcu || '?') + ' (' + (cfg.carte || '?') + ') ' + cfg.version + '\n' : '') + mig.lignes.join('\n'));
+    }
+    var ctrl = TFAnalyse.controler(cfg, TF_SETTINGS, e, TF_CARTES);
+    var h = '<div class="carte"><h2>Carte ' + echap(cfg.carte || '?') + ' · version ' + echap(cfg.version || '?') + '</h2>';
+    h += ctrl.map(function (c) { return '<div class="msg ' + c.niveau + '">' + echap(c.texte) + '</div>'; }).join('') + '</div>' + conversion;
+    var rec;
+    try { rec = TFTune.recommander(e); } catch (err) { out.innerHTML = h; return; }
+    var ec = TFAnalyse.ecarts(cfg, TF_SETTINGS, rec.reglages);
+    h += '<div class="carte"><h2>Écarts avec le réglage TrueGlide (' + ec.length + ')</h2>';
+    if (ec.length) {
+      h += '<div class="tableau"><table><thead><tr><th>Réglage</th><th>Actuel</th><th>Proposé</th><th>Pourquoi</th></tr></thead><tbody>' +
+        ec.map(function (x) { return '<tr><td><code>' + x.nom + '</code></td><td class="num">' + echap(x.actuel) + '</td><td class="num">' + echap(x.propose) + '</td><td>' + echap(x.pourquoi) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+      h += '<h2 style="margin-top:14px">Commandes pour appliquer seulement les écarts</h2>' +
+        blocCli(['# TrueGlide Studio : écarts'].concat(ec.map(function (x) { return 'set ' + x.nom + ' = ' + x.propose; }), ['simplified_tuning apply', 'save']).join('\n'), 'trueglide_ecarts.txt');
+    } else { h += '<div class="msg ok">La configuration correspond déjà au réglage proposé.</div>'; }
+    out.innerHTML = h + '</div>';
+  });
+
+  // ---- navigation ----
+  var points = [], carte = null, couche = null;
+  function ligneType(i, v) { return '<select data-i="' + i + '" data-k="type">' + TFNav.TYPES.map(function (t) { return '<option value="' + t + '"' + (t === v ? ' selected' : '') + '>' + TFNav.NOMS_TYPES[t] + '</option>'; }).join('') + '</select>'; }
+  function ligneMotif(i, v) { return '<select data-i="' + i + '" data-k="motif">' + TFNav.MOTIFS.map(function (t) { return '<option' + (t === v ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select>'; }
+  function champ(i, k, v, pas) { return '<input type="number" step="' + pas + '" data-i="' + i + '" data-k="' + k + '" value="' + v + '">'; }
+  function dessinerPoints() {
+    $('table-points').querySelector('tbody').innerHTML = points.map(function (p, i) {
+      return '<tr><td>' + (i + 1) + '</td><td>' + champ(i, 'lat', p.lat, '0.0000001') + '</td><td>' + champ(i, 'lon', p.lon, '0.0000001') + '</td><td>' +
+        champ(i, 'hauteur', p.hauteur, '1') + '</td><td>' + champ(i, 'vitesse', p.vitesse, '0.5') + '</td><td>' + ligneType(i, p.type) + '</td><td>' +
+        champ(i, 'duree', p.duree, '0.1') + '</td><td>' + ligneMotif(i, p.motif) + '</td><td><button class="second" data-suppr="' + i + '">×</button></td></tr>';
+    }).join('');
+    if (carte && window.L) {
+      if (couche) couche.remove();
+      couche = L.layerGroup(points.map(function (p, i) { return L.marker([p.lat, p.lon], { title: 'Point ' + (i + 1) }); }).concat(points.length > 1 ? [L.polyline(points.map(function (p) { return [p.lat, p.lon]; }))] : [])).addTo(carte);
+    }
+  }
+  function ajouterPoint(lat, lon) {
+    var precedent = points[points.length - 1];
+    points.push({ lat: Number(lat.toFixed(7)), lon: Number(lon.toFixed(7)), hauteur: nombre('hauteurDefaut') || 30, vitesse: nombre('vitesseDefaut') || 5, type: 'FLYOVER', duree: 0, motif: 'NONE' });
+    if (!precedent) points[0].type = 'FLYOVER';
+    dessinerPoints();
+  }
+  $('table-points').addEventListener('input', function (ev) {
+    var t = ev.target, i = t.dataset.i; if (i === undefined) return;
+    points[i][t.dataset.k] = t.tagName === 'SELECT' ? t.value : parseFloat(t.value);
+    if (t.dataset.k === 'lat' || t.dataset.k === 'lon') dessinerPoints();
+  });
+  $('table-points').addEventListener('click', function (ev) { var s = ev.target.dataset.suppr; if (s !== undefined) { points.splice(Number(s), 1); dessinerPoints(); } });
+  $('ajouter-point').addEventListener('click', function () {
+    var der = points[points.length - 1];
+    ajouterPoint(der ? der.lat + 0.0005 : 46.2044, der ? der.lon : 6.1432);
+  });
+  function initCarte() {
+    if (carte || !window.L) { if (!window.L) $('carte-mission').innerHTML = '<p class="petit" style="padding:10px">Carte indisponible hors connexion : utiliser le tableau.</p>'; return; }
+    carte = L.map('carte-mission').setView([46.2044, 6.1432], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(carte);
+    carte.on('click', function (ev) { ajouterPoint(ev.latlng.lat, ev.latlng.lng); });
+    if (navigator.geolocation) navigator.geolocation.getCurrentPosition(function (pos) { carte.setView([pos.coords.latitude, pos.coords.longitude], 16); }, function () { });
+    dessinerPoints();
+  }
+  $('generer-mission').addEventListener('click', function () {
+    var m = TFNav.genererMission({ altitudeSolAmsl: nombre('altSol'), points: points });
+    var reg = TFNav.genererReglages({ vitesseMax: nombre('apVitesse'), angleMax: nombre('apAngle'), rayonArrivee: nombre('apRayon'),
+      retourAlt: nombre('grAlt'), vitesseRetour: nombre('grVitesse'), satellitesMin: nombre('grSats'), failsafeGps: $('fsGps').checked,
+      barriereM: nombre('apBarriere') || 0, actionBarriere: $('apBarriereAction').value, perteRadio: $('apPerteRadio').value });
+    var erreurs = m.erreurs.concat(TFTune.verifier(reg, TF_SETTINGS));
+    var h = '<div class="carte"><h2>Mission</h2>' + messages(erreurs, 'alerte') + messages(m.avertissements, 'conseil');
+    if (!erreurs.length) {
+      h += '<div class="chiffres"><div><span class="petit">Points</span><b>' + points.length + '</b></div><div><span class="petit">Distance</span><b>' + m.distanceTotaleM + ' m</b></div>' +
+        '<div><span class="petit">Durée estimée</span><b>' + Math.floor(m.dureeEstimeeS / 60) + ' min ' + (m.dureeEstimeeS % 60) + ' s</b></div></div>';
+      h += '<p class="petit">Durée = distance / vitesse de chaque point + attentes, sans les accélérations ni le vent.</p>' +
+        blocCli(TFNav.versCli(m, reg), 'trueglide_mission.txt') +
+        '<div class="msg note">Avant d\'activer AUTOPILOT : GPS « fix » avec assez de satellites, point de départ enregistré à l\'armement, ' +
+        'premier essai à faible vitesse, pilote prêt à reprendre la main (couper l\'interrupteur AUTOPILOT).</div>';
+    }
+    $('resultat-mission').innerHTML = h + '</div>';
+  });
+
+  // ---- sources ----
+  $('sources').innerHTML = '<div class="tableau"><table><thead><tr><th>Taille</th><th>P</th><th>I</th><th>D</th><th>FF</th><th>Préréglages (Betaflight firmware-presets, 2025.12)</th></tr></thead><tbody>' +
+    TFTune.REFERENCES.map(function (r) { return '<tr><td>' + r.pouces + '"</td><td class="num">' + r.P + '</td><td class="num">' + r.I + '</td><td class="num">' + r.D + '</td><td class="num">' + r.F + '</td><td>' + echap(r.sources.join(', ')) + '</td></tr>'; }).join('') +
+    '</tbody></table></div><p class="petit">Entre deux tailles : interpolation. Au-delà de 10" : prolongement de la tendance 7" → 10", 15 % plus bas, signalé « extrapolé ». ' +
+    'Correction de puissance (± 20 % au plus) entre 3,5" et 10" seulement, par comparaison avec la référence de même taille.</p>';
+})();
+</script>
+</body>
+</html>

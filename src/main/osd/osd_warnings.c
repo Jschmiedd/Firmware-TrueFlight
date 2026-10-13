@@ -54,6 +54,8 @@
 #include "flight/flight_plan_capture.h"
 #include "flight/flight_plan_nav.h"
 #include "flight/pos_hold.h"
+#include "flight/power_guard.h"
+#include "flight/motor_health.h"
 
 #include "io/beeper.h"
 
@@ -267,6 +269,32 @@ void renderOsdWarning(char *warningText, bool *blinking, uint8_t *displayAttr)
         if (buildEscWarningMessage(warningText, true)) {
             *displayAttr = DISPLAYPORT_SEVERITY_WARNING;
             *blinking = true;
+            return;
+        }
+    }
+#endif
+
+#ifdef USE_MOTOR_HEALTH
+    // TrueGlide: a stalled or desynced motor was just restarted (motor_desync_recovery)
+    if (osdWarnGetState(OSD_WARNING_MOTOR_RESTART) && ARMING_FLAG(ARMED)) {
+        const int motor = motorHealthRecentRestart(millis());
+        if (motor >= 0) {
+            tfp_sprintf(warningText, "M%d RESTART", motor + 1);
+            *displayAttr = DISPLAYPORT_SEVERITY_WARNING;
+            *blinking = true;
+            return;
+        }
+    }
+#endif
+
+#ifdef USE_POWER_GUARD
+    // TrueGlide: throttle limited by the power guard (power_guard_esc_temp / power_guard_current)
+    if (osdWarnGetState(OSD_WARNING_POWER_GUARD) && ARMING_FLAG(ARMED)) {
+        const powerGuardLimitReason_e reason = powerGuardGetLimitReason();
+        if (reason != POWER_GUARD_LIMIT_NONE) {
+            tfp_sprintf(warningText, "%s %d%%", reason == POWER_GUARD_LIMIT_TEMPERATURE ? "ESC HOT" : "AMP LIM",
+                        (int)lrintf(powerGuardGetThrottleCap() * 100));
+            *displayAttr = DISPLAYPORT_SEVERITY_WARNING;
             return;
         }
     }

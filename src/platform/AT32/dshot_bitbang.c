@@ -519,6 +519,7 @@ static bool bbDecodeTelemetry(void)
                     dshotTelemetryState.motorState[motorIndex].telemetryTypes = 1 << DSHOT_TELEMETRY_TYPE_STATE_EVENTS;
                 } else {
                     dshotTelemetryState.motorState[motorIndex].rawValue = rawValue;
+                    dshotTelemetryState.motorState[motorIndex].rawValueSeq++;
                 }
             } else {
                 dshotTelemetryState.invalidPacketCount++;

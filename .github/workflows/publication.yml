@@ -1,0 +1,37 @@
+# TrueGlide : publication d'une version (page Releases) à partir de .hex déjà compilés.
+# Aucun firmware n'est compilé ici (pas de minutes de construction) : on envoie sur une branche publication/<version>
+# les archives publication/*.tar.xz (fichiers .hex) et publication/NOTES.md ; ce workflow crée la version
+# <version> (pré-version) avec un fichier .hex par carte, puis il suffit de supprimer la branche.
+
+name: Publication
+
+on:
+  push:
+    branches:
+      - 'publication/**'
+
+permissions:
+  contents: write
+
+jobs:
+  publier:
+    name: Créer la version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extraire les .hex
+        run: |
+          mkdir hex
+          for a in publication/*.tar.xz; do tar -xJf "$a" -C hex; done
+          ls hex | wc -l
+      - name: Créer la version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#publication/}"
+          gh release create "$VERSION" --target "$GITHUB_SHA" --prerelease \
+            --title "TrueGlide $VERSION (essai)" --notes-file publication/NOTES.md
+          # envoi par paquets de 50 fichiers
+          ls hex/*.hex | xargs -n 50 gh release upload "$VERSION" --clobber
+          cp publication/*.tar.xz . && gh release upload "$VERSION" ./*.tar.xz --clobber
+          echo "$(gh release view "$VERSION" --json assets --jq '.assets | length') fichiers publiés"

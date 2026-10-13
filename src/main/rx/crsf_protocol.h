@@ -49,6 +49,7 @@ typedef enum {
     CRSF_FRAMETYPE_BATTERY_SENSOR = 0x08,
     CRSF_FRAMETYPE_BARO_ALTITUDE = 0x09,
     CRSF_FRAMETYPE_HEARTBEAT = 0x0B,
+    CRSF_FRAMETYPE_TEMP = 0x0D,       // up to 20 int16 temperatures in deci-degrees Celsius
     CRSF_FRAMETYPE_BARO = 0x11,
     CRSF_FRAMETYPE_MAG = 0x12,
     CRSF_FRAMETYPE_ACCGYRO = 0x13,    // full resolution IMU frames

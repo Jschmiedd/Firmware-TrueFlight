@@ -1,0 +1,118 @@
+# TrueGlide : tests et fichiers .hex à flasher.
+# - uniquement à la demande, pour ne pas consommer les minutes gratuites de GitHub :
+# - à la demande (onglet Actions > TrueGlide > Run workflow) : .hex des cartes indiquées (noms de src/config/configs),
+#   « COURANTES » pour 42 cartes courantes (environ 25 minutes), ou « TOUTES » (629 cartes, 8 à 10 heures de quota).
+# Les .hex sont dans les archives « trueglide-<MODELE>-hex-N » de chaque exécution (onglet Actions, 30 jours).
+
+name: TrueGlide
+
+on:
+  # Pas de construction automatique : lancer à la main (Run workflow) pour garder les minutes gratuites de GitHub.
+  # Lancer à la main : onglet Actions > TrueGlide > Run workflow.
+  workflow_dispatch:
+    inputs:
+      cartes:
+        description: 'Cartes séparées par des espaces, ou COURANTES (42) ou TOUTES (629) ; vide = SPEEDYBEEF405MINI'
+        required: false
+        default: ''
+      modele:
+        description: 'Modèle de firmware : STANDARD, TRUENAV (navigation GPS complète) ou TRUENAV_LIGHT (navigation, sans les fonctions de course)'
+        type: choice
+        options: [STANDARD, TRUENAV, TRUENAV_LIGHT]
+        default: STANDARD
+
+jobs:
+  tests:
+    name: Tests (firmware et Studio)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Outils
+        run: sudo apt-get install -y libblocksruntime-dev clang-18
+      - name: Contrôles
+        run: make EXTRA_FLAGS=-Werror checks
+      - name: Tests unitaires du firmware
+        run: make EXTRA_FLAGS=-Werror test-all -j"$(nproc)"
+      - name: Tests de TrueGlide Studio
+        run: node --test trueglide/studio/test/studio.test.js
+
+  liste:
+    name: Liste des cartes
+    runs-on: ubuntu-latest
+    outputs:
+      groupes: ${{ steps.groupes.outputs.groupes }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurations des cartes
+        run: make configs
+      - name: Répartition
+        id: groupes
+        env:
+          CARTES: ${{ github.event.inputs.cartes }}
+        run: |
+          COURANTES="SPEEDYBEEF405V3 SPEEDYBEEF405V4 SPEEDYBEEF405V5 SPEEDYBEEF405MINI SPEEDYBEEF405AIO SPEEDYBEEF7V3 \
+            SPEEDYBEEF7MINIV2 SPEEDYBEEF435AIOELRS MATEKF405SE MATEKF405TE MATEKF405MINI MATEKF411 MATEKF722SE MATEKH743 \
+            JHEF405PRO JHEF435PRO JHEF722PRO TMOTORF7 TMOTORF722SE TMOTORH743 FOXEERF405V2 FOXEERF722V4 FOXEERH743V2 \
+            GEPRCF405 GEPRCF722 GEPRC_TAKER_H743 HGLRCF405V2 HGLRCF722 IFLIGHT_BLITZ_F722 IFLIGHT_BLITZ_H7_PRO \
+            IFLIGHT_H743_AIO_V2 FLYWOOF405PRO FLYWOOF745 BETAFPVF405 BETAFPVF722 BETAFPVH743 AIKONF4V3 SKYSTARSF405V2 \
+            DAKEFPVF405 DAKEFPVH743 NEUTRONRCF435 TBS_LUCID_H7"
+          if [ "$CARTES" = "TOUTES" ]; then
+            LISTE=$(find src/config/configs -name config.h -printf '%h\n' | xargs -n1 basename | sort)
+            N=24
+          elif [ "$CARTES" = "COURANTES" ]; then
+            LISTE="$COURANTES"; N=2
+          elif [ -n "$CARTES" ]; then
+            LISTE="$CARTES"; N=1
+          else
+            LISTE="SPEEDYBEEF405MINI"; N=1
+          fi
+          python3 - "$N" $LISTE <<'PY' >> "$GITHUB_OUTPUT"
+          import json, sys
+          n, cartes = int(sys.argv[1]), sys.argv[2:]
+          groupes = [' '.join(cartes[i::n]) for i in range(n) if cartes[i::n]]
+          print('groupes=' + json.dumps([{'n': i + 1, 'cartes': g} for i, g in enumerate(groupes)]))
+          PY
+
+  hex:
+    name: Fichiers .hex (groupe ${{ matrix.groupe.n }})
+    needs: liste
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        groupe: ${{ fromJson(needs.liste.outputs.groupes) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache du compilateur ARM
+        uses: actions/cache@v4
+        with:
+          path: tools
+          key: arm-sdk-${{ hashFiles('mk/tools.mk') }}
+      - name: Compilateur ARM
+        run: make arm_sdk_install
+      - name: Configurations des cartes
+        run: make configs
+      - name: Construction
+        env:
+          LISTE: ${{ matrix.groupe.cartes }}
+          MODELE: ${{ inputs.modele || 'STANDARD' }}
+        run: |
+          mkdir -p hex
+          ECHECS=""
+          for c in $LISTE; do
+            if make -j"$(nproc)" CONFIG="$c" MODELE="$MODELE" > "build_$c.log" 2>&1; then
+              cp obj/*_"$c".hex hex/ 2>/dev/null || cp obj/*_"$c"*.hex hex/
+              echo "OK    $c"
+            else
+              ECHECS="$ECHECS $c"; echo "ÉCHEC $c"; tail -20 "build_$c.log"
+            fi
+          done
+          echo "$(ls hex | wc -l) fichiers .hex"
+          if [ -n "$ECHECS" ]; then echo "Cartes en échec :$ECHECS"; exit 1; fi
+      - name: Archive des .hex
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trueglide-${{ inputs.modele || 'STANDARD' }}-hex-${{ matrix.groupe.n }}
+          path: hex/*.hex
+          retention-days: 30

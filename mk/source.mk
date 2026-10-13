@@ -47,6 +47,11 @@ PG_SRC = \
             pg/sdio.c \
             pg/serial_uart.c \
             pg/stats.c \
+            pg/power_guard.c \
+            pg/speeder.c \
+            pg/tf_telemetry.c \
+            pg/mav_mission.c \
+            pg/motor_health.c \
             pg/timerio.c \
             pg/timerup.c \
             pg/usb.c \
@@ -176,6 +181,9 @@ COMMON_SRC = \
             flight/gps_rescue_wing.c \
             flight/imu.c \
             flight/mixer.c \
+            flight/power_guard.c \
+            flight/speeder.c \
+            flight/motor_health.c \
             flight/mixer_init.c \
             flight/mixer_tricopter.c \
             flight/nav_trail.c \

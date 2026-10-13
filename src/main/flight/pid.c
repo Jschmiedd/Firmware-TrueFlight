@@ -49,6 +49,7 @@
 #include "flight/gps_rescue.h"
 #include "flight/imu.h"
 #include "flight/mixer.h"
+#include "flight/speeder.h"
 
 #include "io/gps.h"
 
@@ -603,7 +604,16 @@ STATIC_UNIT_TESTED FAST_CODE_NOINLINE float pidLevel(int axis, const pidProfile_
     }
 #endif
 
-    angleTarget = constrainf(angleTarget, -angleLimit, angleLimit);
+#ifdef USE_SPEEDER
+    // speeder transition: the pilot flies around the transition angle
+    const float speederOffset = (axis == FD_PITCH) ? speederGetPitchOffset() : 0.0f;
+    if (speederOffset != 0.0f) {
+        angleTarget = constrainf(constrainf(angleTarget, -angleLimit, angleLimit) + speederOffset, -SPEEDER_MAX_ANGLE, SPEEDER_MAX_ANGLE);
+    } else
+#endif
+    {
+        angleTarget = constrainf(angleTarget, -angleLimit, angleLimit);
+    }
 
     const float currentAngle = (attitude.raw[axis] - angleTrim->raw[axis]) / 10.0f; // stepped at 500hz with some 4ms flat spots
     const float errorAngle = angleTarget - currentAngle;
@@ -1051,6 +1061,10 @@ void FAST_CODE pidController(const pidProfile_t *pidProfile, timeUs_t currentTim
     static float previousRawGyroRateDterm[XYZ_AXIS_COUNT];
 
     calculateSpaValues(pidProfile);
+
+#ifdef USE_SPEEDER
+    speederUpdate(pidRuntime.dT);
+#endif
 
 #ifdef USE_YAW_SPIN_RECOVERY
     const bool yawSpinActive = gyroYawSpinDetected();

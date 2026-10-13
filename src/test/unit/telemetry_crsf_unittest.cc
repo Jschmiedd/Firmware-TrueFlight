@@ -37,6 +37,7 @@ extern "C" {
     #include "pg/pg.h"
     #include "pg/pg_ids.h"
     #include "pg/rx.h"
+    #include "pg/tf_telemetry.h"
 
     #include "drivers/serial.h"
     #include "drivers/system.h"
@@ -60,6 +61,7 @@ extern "C" {
     #include "sensors/acceleration.h"
     #include "sensors/barometer.h"
     #include "sensors/compass.h"
+    #include "sensors/esc_sensor.h"
 
     #include "msp/msp_serial.h"
 
@@ -86,6 +88,10 @@ extern "C" {
     PG_REGISTER(rxConfig_t, rxConfig, PG_RX_CONFIG, 0);
     PG_REGISTER(accelerometerConfig_t, accelerometerConfig, PG_ACCELEROMETER_CONFIG, 0);
     PG_REGISTER(gpsRescueConfig_t, gpsRescueConfig, PG_GPS_RESCUE, 0);
+    PG_REGISTER(tfTelemetryConfig_t, tfTelemetryConfig, PG_TF_TELEMETRY_CONFIG, 0);
+
+    uint8_t testMotorCount = 4;
+    escSensorData_t testEscData[8];
 }
 
 #include "unittest_macros.h"
@@ -306,9 +312,42 @@ TEST(TelemetryCrsfTest, TestFlightMode)
     EXPECT_EQ(crfsCrc(frame, frameLen), frame[7]);
 }
 
+TEST(TelemetryCrsfTest, TestEscTemperature)
+{
+    uint8_t frame[CRSF_FRAME_SIZE_MAX];
+    const uint8_t temps[4] = { 45, 52, 61, 38 };
+    for (int i = 0; i < 4; i++) {
+        testEscData[i].temperature = temps[i];
+        testEscData[i].dataAge = 0;
+    }
+    int frameLen = getCrsfFrame(frame, CRSF_FRAMETYPE_TEMP);
+    EXPECT_EQ(1 + 2 * 4 + FRAME_HEADER_FOOTER_LEN, frameLen);
+    EXPECT_EQ(CRSF_SYNC_BYTE, frame[0]);
+    EXPECT_EQ(1 + 2 * 4 + 2, frame[1]);          // length: type + payload + crc
+    EXPECT_EQ(0x0D, frame[2]);                    // CRSF temperature frame
+    EXPECT_EQ(0, frame[3]);                       // source 0: flight controller including all ESCs
+    for (int i = 0; i < 4; i++) {
+        const int16_t deciC = (int16_t)(frame[4 + 2 * i] << 8 | frame[5 + 2 * i]);   // big endian
+        EXPECT_EQ(temps[i] * 10, deciC);
+    }
+    EXPECT_EQ(crfsCrc(frame, frameLen), frame[frameLen - 1]);
+
+    // one ESC without a temperature (or stale data): nothing is sent, never a 0 °C or a shifted value
+    testEscData[2].temperature = 0;
+    frameLen = getCrsfFrame(frame, CRSF_FRAMETYPE_TEMP);
+    EXPECT_EQ(1 + FRAME_HEADER_FOOTER_LEN, frameLen);   // empty payload from getCrsfFrame: the scheduler skips it
+    testEscData[2].temperature = 61;
+    testEscData[3].dataAge = 50;
+    frameLen = getCrsfFrame(frame, CRSF_FRAMETYPE_TEMP);
+    EXPECT_EQ(1 + FRAME_HEADER_FOOTER_LEN, frameLen);
+}
+
 // STUBS
 
 extern "C" {
+
+uint8_t getMotorCount(void) { return testMotorCount; }
+escSensorData_t *getEscSensorData(uint8_t motorNumber) { return motorNumber < 8 ? &testEscData[motorNumber] : NULL; }
 
 int16_t debug[DEBUG16_VALUE_COUNT];
 

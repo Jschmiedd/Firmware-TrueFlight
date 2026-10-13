@@ -44,6 +44,7 @@
 #include "common/time.h"
 #include "common/utils.h"
 
+#include "drivers/dshot.h"
 #include "drivers/nvic.h"
 #include "drivers/persistent.h"
 
@@ -53,6 +54,7 @@
 #include "flight/flight_plan_nav.h"
 #include "flight/gps_rescue.h"
 #include "flight/imu.h"
+#include "flight/mixer.h"
 #include "flight/pid.h"
 #include "flight/position.h"
 
@@ -62,6 +64,7 @@
 
 #include "pg/pg.h"
 #include "pg/pg_ids.h"
+#include "pg/tf_telemetry.h"
 
 #include "rx/crsf.h"
 #include "rx/crsf_protocol.h"
@@ -69,6 +72,7 @@
 #include "sensors/battery.h"
 #include "sensors/barometer.h"
 #include "sensors/compass.h"
+#include "sensors/esc_sensor.h"
 #include "sensors/sensors.h"
 #include "sensors/acceleration.h"
 #include "sensors/gyro.h"
@@ -930,6 +934,52 @@ static void crsfFrameDisplayPortClear(sbuf_t *dst)
 
 #endif
 
+#ifdef USE_CRSF_ESC_TEMP
+// TrueGlide: ESC temperatures (crsf_tlm_esc_temp), one value per motor in motor order. Sent only when every motor's ESC
+// reports a temperature: a missing one would shift the others onto the wrong motor, and 0 °C would be a false reading.
+#define CRSF_ESC_TEMP_INTERVAL_US 2000000   // every 2 s: a temperature changes slowly, the telemetry slots stay free
+#define CRSF_ESC_TEMP_MAX 8
+
+static uint32_t lastEscTempTime;
+
+STATIC_UNIT_TESTED int crsfCollectEscTemperatures(int16_t *deciC)
+{
+    const int count = MIN(getMotorCount(), CRSF_ESC_TEMP_MAX);
+    for (int i = 0; i < count; i++) {
+        int celsius = 0;
+#ifdef USE_DSHOT_TELEMETRY
+        escSensorData_t dshotData;
+        if (useDshotTelemetry && getDshotSensorData(&dshotData, i)) {
+            celsius = dshotData.temperature;        // extended DShot telemetry, 0 = not reported
+        }
+#endif
+#ifdef USE_ESC_SENSOR
+        if (celsius == 0 && featureIsEnabled(FEATURE_ESC_SENSOR)) {
+            const escSensorData_t *data = getEscSensorData(i);
+            if (data && data->dataAge <= ESC_BATTERY_AGE_MAX) {
+                celsius = data->temperature;        // serial ESC telemetry
+            }
+        }
+#endif
+        if (celsius == 0) {
+            return 0;
+        }
+        deciC[i] = celsius * 10;
+    }
+    return count;
+}
+
+static void crsfFrameEscTemperature(sbuf_t *dst, const int16_t *deciC, int count)
+{
+    sbufWriteU8(dst, 1 + 2 * count + CRSF_FRAME_LENGTH_TYPE_CRC);
+    sbufWriteU8(dst, CRSF_FRAMETYPE_TEMP);
+    sbufWriteU8(dst, 0);                            // source 0: flight controller including all ESCs
+    for (int i = 0; i < count; i++) {
+        sbufWriteU16BigEndian(dst, deciC[i]);
+    }
+}
+#endif
+
 // schedule array to decide how often each type of frame is sent
 typedef enum {
     CRSF_FRAME_START_INDEX = 0,
@@ -952,6 +1002,9 @@ typedef enum {
     CRSF_TIMED_FRAME_BARO_INDEX,
 #ifdef USE_CRSF_ACCGYRO_TELEMETRY
     CRSF_TIMED_FRAME_ACCGYRO_INDEX,
+#endif
+#ifdef USE_CRSF_ESC_TEMP
+    CRSF_TIMED_FRAME_ESC_TEMP_INDEX,
 #endif
     CRSF_TIMED_SCHEDULE_COUNT_MAX
 } crsfTimedFrameTypeIndex_e;
@@ -1021,6 +1074,19 @@ static bool processCrsf(uint32_t currentTimeUs, uint32_t crsfLastCycleTime)
 #endif
         lastGpsSolnTime = gpsSol.time;
         return true;
+    }
+#endif
+#ifdef USE_CRSF_ESC_TEMP
+    if (crsfTimedSchedule & BIT(CRSF_TIMED_FRAME_ESC_TEMP_INDEX) && cmpTimeUs(currentTimeUs, lastEscTempTime) > CRSF_ESC_TEMP_INTERVAL_US) {
+        lastEscTempTime = currentTimeUs;
+        int16_t deciC[CRSF_ESC_TEMP_MAX];
+        const int count = crsfCollectEscTemperatures(deciC);
+        if (count > 0) {
+            crsfInitializeFrame(dst);
+            crsfFrameEscTemperature(dst, deciC, count);
+            crsfFinalize(dst);
+            return true;
+        }
     }
 #endif
 #if defined(USE_BARO)
@@ -1195,6 +1261,11 @@ void initCrsfTelemetry(void)
     mspReplyPending = false;
 #endif
     crsfTimedSchedule = 0;
+#ifdef USE_CRSF_ESC_TEMP
+    if (tfTelemetryConfig()->crsf_esc_temp) {
+        crsfTimedSchedule |= BIT(CRSF_TIMED_FRAME_ESC_TEMP_INDEX);
+    }
+#endif
 
     uint8_t index = 0;
     if (sensors(SENSOR_ACC) && telemetryIsSensorEnabled(SENSOR_PITCH | SENSOR_ROLL | SENSOR_HEADING)) {
@@ -1502,6 +1573,13 @@ int getCrsfFrame(uint8_t *frame, crsfFrameType_e frameType)
     case CRSF_FRAMETYPE_VARIO_SENSOR:
         crsfFrameVarioSensor(sbuf);
         break;
+#endif
+#ifdef USE_CRSF_ESC_TEMP
+    case CRSF_FRAMETYPE_TEMP: {
+        int16_t deciC[CRSF_ESC_TEMP_MAX];
+        crsfFrameEscTemperature(sbuf, deciC, crsfCollectEscTemperatures(deciC));
+        break;
+    }
 #endif
 #if defined(USE_MSP_OVER_TELEMETRY)
     case CRSF_FRAMETYPE_DEVICE_INFO:

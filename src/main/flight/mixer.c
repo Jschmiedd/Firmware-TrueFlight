@@ -52,7 +52,9 @@
 #include "flight/imu.h"
 #include "flight/mixer_init.h"
 #include "flight/mixer_tricopter.h"
+#include "flight/motor_health.h"
 #include "flight/pid.h"
+#include "flight/power_guard.h"
 #include "flight/rpm_filter.h"
 
 #include "io/gps.h"
@@ -722,6 +724,14 @@ FAST_CODE_NOINLINE void mixTable(timeUs_t currentTimeUs)
         throttle = applyThrottleLimit(throttle);
     }
 
+#ifdef USE_POWER_GUARD
+    // cap the throttle when the ESCs are too hot or the battery current is too high
+    if (powerGuardIsEnabled()) {
+        powerGuardUpdate(currentTimeUs, throttle, ARMING_FLAG(ARMED));
+        throttle = MIN(throttle, powerGuardGetThrottleCap());
+    }
+#endif
+
     // use scaled throttle, without dynamic idle throttle offset, as the input to antigravity
     pidUpdateAntiGravityThrottleFilter(throttle);
 
@@ -841,6 +851,10 @@ FAST_CODE_NOINLINE void mixTable(timeUs_t currentTimeUs)
     } else {
         // Apply the mix to motor endpoints
         applyMixToMotors(motorMix, activeMixer);
+#ifdef USE_MOTOR_HEALTH
+        // TrueGlide: restart a desynced or blocked motor (motor_desync_recovery)
+        motorHealthApplyDesyncRecovery(motor, mixerRuntime.motorCount, mixerRuntime.motorOutputLow, mixerRuntime.motorOutputHigh, pidGetDT());
+#endif
     }
 }
 

@@ -873,6 +873,26 @@ extern struct linker_symbol __fontdata_end;
 #define ENABLE_BOOT0_PIN_SELECT 1
 #endif
 
+// TrueGlide TRUENAV: missions need an accelerometer; wings keep the Betaflight wing autopilot. GPS Rescue keeps the
+// regular Betaflight controller (same behaviour as the STANDARD model).
+#if defined(TRUEGLIDE_FLIGHT_PLAN)
+#if !defined(USE_ACC) || defined(USE_WING)
+#undef USE_FLIGHT_PLAN
+#endif
+#if !defined(ENABLE_RESCUE_PLAN)
+#define ENABLE_RESCUE_PLAN 0
+#endif
+#endif
+
+// TrueGlide TRUENAV_LIGHT: navigation drones do not need the racing extras (launch control, race transponder, spec racing
+// pre-arm screen, RC stick statistics); dropping them leaves flash for navigation on 512 KB boards.
+#if defined(TRUEGLIDE_NAV_LIGHT)
+#undef USE_LAUNCH_CONTROL
+#undef USE_TRANSPONDER
+#undef USE_SPEC_PREARM_SCREEN
+#undef USE_RC_STATS
+#endif
+
 #if defined(USE_FLIGHT_PLAN) && !defined(ENABLE_FLIGHT_PLAN)
 #define ENABLE_FLIGHT_PLAN 1
 #elif !defined(ENABLE_FLIGHT_PLAN)
@@ -993,4 +1013,19 @@ extern struct linker_symbol __fontdata_end;
 // can't yet skip restricted (e.g. RIFSC-protected) ports cleanly.
 #if !defined(ENABLE_UNUSED_PINS_INIT)
 #define ENABLE_UNUSED_PINS_INIT 1
+#endif
+
+// TrueGlide: the speeder transition is for multirotors (wings use angle_pitch_offset)
+#if defined(USE_WING) || !defined(USE_ACC)
+#undef USE_SPEEDER
+#endif
+
+// TrueGlide: the CRSF ESC temperature frame needs CRSF telemetry and an ESC temperature source
+#if !defined(USE_TELEMETRY_CRSF) || !(defined(USE_ESC_SENSOR) || defined(USE_DSHOT_TELEMETRY))
+#undef USE_CRSF_ESC_TEMP
+#endif
+
+// TrueGlide: motor health needs a motor speed source (bidirectional DShot or serial ESC telemetry)
+#if !defined(USE_DSHOT_TELEMETRY) && !defined(USE_ESC_SENSOR)
+#undef USE_MOTOR_HEALTH
 #endif

@@ -42,6 +42,7 @@
 
 #include "pg/autopilot.h"
 #include "pg/flight_plan.h"
+#include "pg/mav_mission.h"
 
 #include "telemetry/mavlink.h"
 #include "telemetry/mavlink_mission.h"
@@ -71,7 +72,16 @@ static struct {
     timeMs_t lastCurrentTxMs;
     int16_t  pendingReachedIndex;
     bool     rtlTerminator;     // current upload ends with NAV_RETURN_TO_LAUNCH (last slot discarded)
+    uint8_t  homeOffset;        // TrueGlide: 1 when item 0 is home (Mission Planner), fixed for one transfer
+    bool     refAltValid;       // TrueGlide: altitude of the uploaded home item, reference for relative altitudes
+    int32_t  refAltCm;
 } m;
+
+// TrueGlide: 1 when MAVLink item 0 is the home position (ArduPilot / Mission Planner convention)
+static uint8_t homeItemOffset(void)
+{
+    return mavMissionConfig()->home_item ? 1 : 0;
+}
 
 static mavlink_message_t txMsg;
 
@@ -121,7 +131,19 @@ static void abortUpload(uint8_t result)
     m.state = MISSION_IDLE;
 }
 
-static void sendMissionItem(uint8_t partnerSys, uint8_t partnerComp, uint16_t seq)
+// TrueGlide: home item (seq 0) for Mission Planner downloads
+static void sendHomeItem(uint8_t partnerSys, uint8_t partnerComp)
+{
+    const bool home = STATE(GPS_FIX_HOME);
+    mavlink_msg_mission_item_int_pack(MAVLINK_SYSTEM_ID, MAVLINK_COMPONENT_ID, &txMsg,
+        partnerSys, partnerComp, 0, MAV_FRAME_GLOBAL_INT, MAV_CMD_NAV_WAYPOINT, 0, 1,
+        0.0f, 0.0f, 0.0f, 0.0f,
+        home ? GPS_home_llh.lat : 0, home ? GPS_home_llh.lon : 0, home ? GPS_home_llh.altCm * 0.01f : 0.0f,
+        MAV_MISSION_TYPE_MISSION);
+    mavlinkSendMessage(&txMsg);
+}
+
+static void sendMissionItem(uint8_t partnerSys, uint8_t partnerComp, uint16_t seq, uint16_t msgSeq)
 {
     const flightPlanConfig_t *plan = flightPlanConfig();
     const waypoint_t *wp = &plan->waypoints[seq];
@@ -181,7 +203,7 @@ static void sendMissionItem(uint8_t partnerSys, uint8_t partnerComp, uint16_t se
         && seq == flightPlanNavGetCurrentIndex()) ? 1 : 0;
 
     mavlink_msg_mission_item_int_pack(MAVLINK_SYSTEM_ID, MAVLINK_COMPONENT_ID, &txMsg,
-        partnerSys, partnerComp, seq, MAV_FRAME_GLOBAL_INT, command, current, 1,
+        partnerSys, partnerComp, msgSeq, MAV_FRAME_GLOBAL_INT, command, current, 1,
         param1, param2, param3, 0.0f,
         lat, lon, zM,
         MAV_MISSION_TYPE_MISSION);
@@ -204,12 +226,17 @@ static bool decodeFrameAltCm(uint8_t frame, float z, int32_t *altCmOut, uint8_t 
         return true;
     case MAV_FRAME_GLOBAL_RELATIVE_ALT:
     case MAV_FRAME_GLOBAL_RELATIVE_ALT_INT:
-        if (!STATE(GPS_FIX_HOME)) {
-            *resultOut = MAV_MISSION_INVALID;
-            return false;
+        if (STATE(GPS_FIX_HOME)) {
+            *altCmOut = (int32_t)(z * 100.0f) + GPS_home_llh.altCm;
+            return true;
         }
-        *altCmOut = (int32_t)(z * 100.0f) + GPS_home_llh.altCm;
-        return true;
+        // TrueGlide: before arming there is no GPS home yet; Mission Planner sends the home altitude in item 0
+        if (m.refAltValid) {
+            *altCmOut = (int32_t)(z * 100.0f) + m.refAltCm;
+            return true;
+        }
+        *resultOut = MAV_MISSION_INVALID;
+        return false;
     default:
         *resultOut = MAV_MISSION_UNSUPPORTED_FRAME;
         return false;
@@ -392,7 +419,8 @@ static bool mapMavCmdToWaypoint(const mavlink_mission_item_int_t *it, waypoint_t
 
 static void handleRequestList(const mavlink_message_t *msg)
 {
-    const uint16_t count = flightPlanConfig()->waypointCount;
+    m.homeOffset = homeItemOffset();
+    const uint16_t count = flightPlanConfig()->waypointCount + m.homeOffset;
     m.partnerSys = msg->sysid;
     m.partnerComp = msg->compid;
 
@@ -436,7 +464,11 @@ static void handleRequestInt(const mavlink_message_t *msg)
         return;
     }
 
-    sendMissionItem(msg->sysid, msg->compid, req.seq);
+    if (req.seq < m.homeOffset) {
+        sendHomeItem(msg->sysid, msg->compid);
+    } else {
+        sendMissionItem(msg->sysid, msg->compid, req.seq - m.homeOffset, req.seq);
+    }
     if (req.seq == m.totalCount - 1) {
         // Final item — partner is expected to send MISSION_ACK; drop to IDLE on receipt
         // or via the SENDING-idle timeout.
@@ -463,11 +495,12 @@ static void handleCount(const mavlink_message_t *msg)
         sendAck(msg->sysid, msg->compid, MAV_MISSION_DENIED);
         return;
     }
-    if (mc.count > MAX_WAYPOINTS) {
+    const uint8_t homeOffset = homeItemOffset();
+    if (mc.count > MAX_WAYPOINTS + homeOffset) {
         sendAck(msg->sysid, msg->compid, MAV_MISSION_NO_SPACE);
         return;
     }
-    if (mc.count == 0) {
+    if (mc.count <= homeOffset) {   // empty mission (or home item only)
         flightPlanConfigMutable()->waypointCount = 0;
         saveConfigAndNotify();
         sendAck(msg->sysid, msg->compid, MAV_MISSION_ACCEPTED);
@@ -488,6 +521,8 @@ static void handleCount(const mavlink_message_t *msg)
     m.lastActivityMs = millis();
     m.retries = 0;
     m.rtlTerminator = false;
+    m.homeOffset = homeOffset;
+    m.refAltValid = false;
     sendRequestInt(msg->sysid, msg->compid, 0);
 }
 
@@ -511,6 +546,20 @@ static void handleItemInt(const mavlink_message_t *msg)
         return;
     }
 
+    if (it.seq < m.homeOffset) {
+        // TrueGlide: home item, never flown. Its absolute altitude is the reference for relative altitudes
+        // until GPS home exists (Mission Planner plans before arming).
+        if ((it.frame == MAV_FRAME_GLOBAL || it.frame == MAV_FRAME_GLOBAL_INT) && isfinite(it.z) && (it.x || it.y)) {
+            m.refAltCm = (int32_t)(it.z * 100.0f);
+            m.refAltValid = true;
+        }
+        m.nextSeq++;
+        m.lastActivityMs = millis();
+        m.retries = 0;
+        sendRequestInt(msg->sysid, msg->compid, m.nextSeq);
+        return;
+    }
+
     waypoint_t wp;
     bool isRtl = false;
     const bool isLastSlot = (it.seq == m.totalCount - 1);
@@ -524,7 +573,7 @@ static void handleItemInt(const mavlink_message_t *msg)
         // RTL discards its own slot; mission count finalises at items received so far.
         m.rtlTerminator = true;
     } else {
-        flightPlanConfigMutable()->waypoints[it.seq] = wp;
+        flightPlanConfigMutable()->waypoints[it.seq - m.homeOffset] = wp;
     }
 
     m.nextSeq++;
@@ -537,7 +586,8 @@ static void handleItemInt(const mavlink_message_t *msg)
     }
 
     // Upload complete.
-    const uint16_t finalCount = m.rtlTerminator ? m.totalCount - 1 : m.totalCount;
+    const uint16_t stored = m.totalCount - m.homeOffset;
+    const uint16_t finalCount = m.rtlTerminator ? stored - 1 : stored;
     flightPlanConfigMutable()->waypointCount = finalCount;
     saveConfigAndNotify();
     sendAck(msg->sysid, msg->compid, MAV_MISSION_ACCEPTED);
@@ -596,8 +646,9 @@ static void sendMissionCurrent(void)
 {
     const uint16_t total = flightPlanConfig()->waypointCount;
     const bool active = flightPlanNavIsActive();
+    const uint8_t offset = homeItemOffset();
     const uint16_t seq = (total && active && !flightPlanNavIsInjectedPlanActive())
-        ? flightPlanNavGetCurrentIndex() : 0;
+        ? flightPlanNavGetCurrentIndex() + offset : 0;
     const uint8_t missionMode = active ? 1 : 2;
     uint8_t missionState;
     if (total == 0) {
@@ -610,7 +661,7 @@ static void sendMissionCurrent(void)
         missionState = MISSION_STATE_ACTIVE;
     }
     mavlink_msg_mission_current_pack(MAVLINK_SYSTEM_ID, MAVLINK_COMPONENT_ID, &txMsg,
-        seq, total, missionState, missionMode, 0, 0, 0);
+        seq, total ? total + offset : 0, missionState, missionMode, 0, 0, 0);
     mavlinkSendMessage(&txMsg);
 }
 
@@ -654,8 +705,10 @@ bool mavMissionHandleMessage(const mavlink_message_t *msg)
         // Out-of-range seq is a no-op on the cursor; the executor guards the
         // range too. Guard the narrowing cast so a seq > 255 can't wrap into a
         // valid index. Either way the partner gets the current cursor back.
-        if (sc.seq <= UINT8_MAX) {
-            flightPlanNavSetCurrentIndex((uint8_t)sc.seq);
+        const uint16_t offset = homeItemOffset();
+        const uint16_t index = sc.seq > offset ? sc.seq - offset : 0;   // TrueGlide: home item -> first waypoint
+        if (index <= UINT8_MAX) {
+            flightPlanNavSetCurrentIndex((uint8_t)index);
         }
         sendMissionCurrent();
         return true;
@@ -689,7 +742,7 @@ void mavMissionUpdate(timeMs_t nowMs)
     // MISSION_ITEM_REACHED — drain as soon as the executor flagged one.
     if (m.pendingReachedIndex >= 0) {
         mavlink_msg_mission_item_reached_pack(MAVLINK_SYSTEM_ID, MAVLINK_COMPONENT_ID, &txMsg,
-            (uint16_t)m.pendingReachedIndex);
+            (uint16_t)(m.pendingReachedIndex + homeItemOffset()));
         mavlinkSendMessage(&txMsg);
         m.pendingReachedIndex = -1;
     }

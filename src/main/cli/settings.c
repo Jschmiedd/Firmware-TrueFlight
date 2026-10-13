@@ -119,6 +119,11 @@
 #include "pg/scheduler.h"
 #include "pg/sdio.h"
 #include "pg/rcdevice.h"
+#include "pg/power_guard.h"
+#include "pg/speeder.h"
+#include "pg/tf_telemetry.h"
+#include "pg/mav_mission.h"
+#include "pg/motor_health.h"
 #include "pg/stats.h"
 #include "pg/board.h"
 
@@ -1978,6 +1983,31 @@ const clivalue_t valueTable[] = {
 #ifdef USE_RX_FLYSKY
     { "flysky_spi_tx_id",       VAR_UINT32 | MASTER_VALUE, .config.u32Max = UINT32_MAX, PG_FLYSKY_CONFIG, offsetof(flySkyConfig_t, txId) },
     { "flysky_spi_rf_channels", VAR_UINT8 | MASTER_VALUE | MODE_ARRAY, .config.array.length = 16, PG_FLYSKY_CONFIG, offsetof(flySkyConfig_t, rfChannelMap) },
+#endif
+
+#ifdef USE_POWER_GUARD
+    { "power_guard_esc_temp",       VAR_UINT8  | MASTER_VALUE, .config.minmaxUnsigned = { 0, 150 }, PG_POWER_GUARD_CONFIG, offsetof(powerGuardConfig_t, esc_temp_limit) },
+    { "power_guard_current",        VAR_UINT16 | MASTER_VALUE, .config.minmaxUnsigned = { 0, 1000 }, PG_POWER_GUARD_CONFIG, offsetof(powerGuardConfig_t, current_limit) },
+    { "power_guard_min_throttle",   VAR_UINT8  | MASTER_VALUE, .config.minmaxUnsigned = { 20, 100 }, PG_POWER_GUARD_CONFIG, offsetof(powerGuardConfig_t, min_throttle) },
+#endif
+
+#if ENABLE_TELEMETRY_MAVLINK_MISSION
+    { "mav_mission_home_item",      VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, .config.lookup = { TABLE_OFF_ON }, PG_MAV_MISSION_CONFIG, offsetof(mavMissionConfig_t, home_item) },
+#endif
+#ifdef USE_SPEEDER
+    { "speeder_cruise_angle",       VAR_UINT8  | MASTER_VALUE, .config.minmaxUnsigned = { 10, 80 }, PG_SPEEDER_CONFIG, offsetof(speederConfig_t, cruise_angle) },
+    { "speeder_transition_rate",    VAR_UINT8  | MASTER_VALUE, .config.minmaxUnsigned = { 5, 180 }, PG_SPEEDER_CONFIG, offsetof(speederConfig_t, transition_rate) },
+    { "speeder_fpv_mix",            VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, .config.lookup = { TABLE_OFF_ON }, PG_SPEEDER_CONFIG, offsetof(speederConfig_t, fpv_mix) },
+#endif
+
+#ifdef USE_CRSF_ESC_TEMP
+    { "crsf_tlm_esc_temp",          VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, .config.lookup = { TABLE_OFF_ON }, PG_TF_TELEMETRY_CONFIG, offsetof(tfTelemetryConfig_t, crsf_esc_temp) },
+#endif
+
+#ifdef USE_MOTOR_HEALTH
+    { "dshot_telemetry_fallback",   VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, .config.lookup = { TABLE_OFF_ON }, PG_MOTOR_HEALTH_CONFIG, offsetof(motorHealthConfig_t, telemetry_fallback) },
+    { "motor_desync_recovery",      VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, .config.lookup = { TABLE_OFF_ON }, PG_MOTOR_HEALTH_CONFIG, offsetof(motorHealthConfig_t, desync_recovery) },
+    { "motor_desync_threshold",     VAR_UINT8  | MASTER_VALUE, .config.minmaxUnsigned = { 10, 80 }, PG_MOTOR_HEALTH_CONFIG, offsetof(motorHealthConfig_t, desync_threshold) },
 #endif
 
 #ifdef USE_PERSISTENT_STATS

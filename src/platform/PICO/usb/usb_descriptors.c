@@ -105,7 +105,7 @@ const uint8_t * tud_descriptor_configuration_cb(uint8_t index)
 // String descriptors
 static char const* string_desc_arr[] = {
   (const char[]){ 0x09, 0x04 }, // 0: English (0x0409)
-  FC_FIRMWARE_NAME,             // 1: Manufacturer
+  FC_BASE_FIRMWARE_NAME,             // 1: Manufacturer
   USBD_PRODUCT_STRING,          // 2: Product
   "123456",                    // 3: Serial (placeholder)
   "Betaflight CDC",            // 4: CDC Interface

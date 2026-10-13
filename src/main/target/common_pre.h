@@ -318,6 +318,45 @@
 
 #endif // !defined(CLOUD_BUILD)
 
+// TrueGlide: ESC temperature / battery current throttle guard (off by default).
+// Small (about 1 KB), so it is built for every target, whatever the flash size.
+#define USE_POWER_GUARD
+
+// TrueGlide: speeder forward transition in ANGLE mode (only active with a SPEEDER switch)
+#define USE_SPEEDER
+
+// TrueGlide: ESC temperatures sent to the radio over CRSF / ELRS (crsf_tlm_esc_temp, off by default)
+#define USE_CRSF_ESC_TEMP
+
+// TrueGlide: Caddx GM3 camera gimbal driver (serial). Inactive until a serial port is set to the GIMBAL function.
+// Left out of F411 boards and of the TRUENAV_LIGHT model, the tightest in flash.
+#if (TARGET_FLASH_SIZE > 512 || defined(STM32F722xx)) && !defined(TRUEGLIDE_NAV_LIGHT)
+#define USE_GIMBAL
+#endif
+
+// TrueGlide: DShot telemetry fallback and motor desync recovery (both off by default)
+#define USE_MOTOR_HEALTH
+
+// TrueGlide TRUENAV / TRUENAV_LIGHT models (make MODELE=TRUENAV or TRUENAV_LIGHT): full GPS navigation on every board, including the
+// mission engine (AUTOPILOT mode, waypoints, MAVLink mission upload) that Betaflight only builds for SITL. Nothing
+// changes in flight until a navigation mode is put on a switch.
+#if defined(TRUEGLIDE_NAV)
+#define USE_FLIGHT_PLAN
+#define TRUEGLIDE_FLIGHT_PLAN
+#if !defined(USE_GPS)
+#define USE_GPS
+#endif
+#if !defined(USE_ALTITUDE_HOLD)
+#define USE_ALTITUDE_HOLD
+#endif
+#if !defined(USE_POSITION_HOLD)
+#define USE_POSITION_HOLD
+#endif
+#if defined(USE_TELEMETRY) && !defined(USE_TELEMETRY_MAVLINK)
+#define USE_TELEMETRY_MAVLINK
+#endif
+#endif
+
 #if defined(USE_LED_STRIP_64) && !defined(USE_LED_STRIP)
 #define USE_LED_STRIP
 #endif

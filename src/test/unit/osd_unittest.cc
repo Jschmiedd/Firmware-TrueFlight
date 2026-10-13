@@ -47,6 +47,7 @@ extern "C" {
     #include "flight/imu.h"
     #include "flight/mixer.h"
     #include "flight/pid.h"
+    #include "flight/power_guard.h"
 
     #include "io/beeper.h"
     #include "io/gps.h"
@@ -111,6 +112,9 @@ extern "C" {
     int32_t simulationVerticalSpeed;
     uint16_t simulationCoreTemperature;
     bool simulationGpsHealthy;
+    int simulationPowerGuardReason;
+    float simulationPowerGuardCap;
+    int simulationRestartMotor;
 }
 
 uint32_t simulationFeatureFlags = FEATURE_GPS;
@@ -145,6 +149,9 @@ void setDefaultSimulationState()
     simulationVerticalSpeed = 0;
     simulationCoreTemperature = 0;
     simulationGpsHealthy = false;
+    simulationPowerGuardReason = 0;
+    simulationPowerGuardCap = 1.0f;
+    simulationRestartMotor = -1;
 
     rcData[PITCH] = 1500;
 
@@ -1506,6 +1513,63 @@ TEST_F(OsdTest, TestBatteryUsageCapacityZero)
     
 }
 
+/*
+ * TrueGlide warnings: throttle limited by the power guard, motor restarted by the desync recovery.
+ */
+TEST_F(OsdTest, TestElementWarningsTrueGlide)
+{
+    // given
+    osdElementConfigMutable()->item_pos[OSD_WARNINGS] = OSD_POS(9, 10) | OSD_PROFILE_1_FLAG;
+    osdConfigMutable()->enabledWarnings = 0;
+    osdWarnSetState(OSD_WARNING_POWER_GUARD, true);
+    osdWarnSetState(OSD_WARNING_MOTOR_RESTART, true);
+    osdAnalyzeActiveElements();
+    doTestArm(false);
+
+    // when: nothing limited, no restart
+    displayClearScreen(&testDisplayPort, DISPLAY_CLEAR_WAIT);
+    osdRefresh();
+    // then
+    displayPortTestBufferSubstring(9, 10, "            ");
+
+    // when: ESC too hot, throttle capped at 65 %
+    simulationPowerGuardReason = POWER_GUARD_LIMIT_TEMPERATURE;
+    simulationPowerGuardCap = 0.65f;
+    displayClearScreen(&testDisplayPort, DISPLAY_CLEAR_WAIT);
+    osdRefresh();
+    // then
+    displayPortTestBufferSubstring(9, 10, "ESC HOT 65%%");
+
+    // when: battery current over the limit
+    simulationPowerGuardReason = POWER_GUARD_LIMIT_CURRENT;
+    simulationPowerGuardCap = 0.8f;
+    displayClearScreen(&testDisplayPort, DISPLAY_CLEAR_WAIT);
+    osdRefresh();
+    // then
+    displayPortTestBufferSubstring(9, 10, "AMP LIM 80%%");
+
+    // when: motor 2 restarted (takes priority, blinking)
+    simulationRestartMotor = 1;
+    displayClearScreen(&testDisplayPort, DISPLAY_CLEAR_WAIT);
+    simulationTime += 1000000;
+    simulationTime -= simulationTime % 1000000;
+    simulationTime += 0.25e6;
+    osdRefresh();
+    // then
+    displayPortTestBufferSubstring(9, 10, "M2 RESTART");
+
+    // when: warnings disabled
+    osdConfigMutable()->enabledWarnings = 0;
+    displayClearScreen(&testDisplayPort, DISPLAY_CLEAR_WAIT);
+    osdRefresh();
+    // then
+    displayPortTestBufferSubstring(9, 10, "            ");
+
+    simulationRestartMotor = -1;
+    simulationPowerGuardReason = POWER_GUARD_LIMIT_NONE;
+    DISABLE_ARMING_FLAG(ARMED);
+}
+
 // STUBS
 extern "C" {
     bool featureIsEnabled(uint32_t f) { return simulationFeatureFlags & f; }
@@ -1623,6 +1687,9 @@ extern "C" {
     uint16_t getCoreTemperatureCelsius(void) { return simulationCoreTemperature; }
 
     bool isCrashFlipModeActive(void) { return false; }
+    powerGuardLimitReason_e powerGuardGetLimitReason(void) { return (powerGuardLimitReason_e)simulationPowerGuardReason; }
+    float powerGuardGetThrottleCap(void) { return simulationPowerGuardCap; }
+    int motorHealthRecentRestart(uint32_t) { return simulationRestartMotor; }
 
     float pidItermAccelerator(void) { return 1.0; }
     uint8_t getMotorCount(void){ return 4; }

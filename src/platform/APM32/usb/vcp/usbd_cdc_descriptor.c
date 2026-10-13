@@ -36,7 +36,7 @@
 #define USBD_GEEHY_VID              0x314B
 #define USBD_PID                    0x5740
 #define USBD_LANGID_STR             0x0409
-#define USBD_MANUFACTURER_STR       FC_FIRMWARE_NAME
+#define USBD_MANUFACTURER_STR       FC_BASE_FIRMWARE_NAME
 
 #ifdef USBD_PRODUCT_STRING
 #define USBD_PRODUCT_HS_STR         USBD_PRODUCT_STRING

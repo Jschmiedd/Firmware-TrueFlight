@@ -278,7 +278,7 @@ void gimbalUpdate(timeUs_t currentTimeUs)
                     gimbalParseState = GIMBAL_CMD;
                     gimbalInCount = sizeof(gimbalCmdIn.u.gimbalCmd.opcode);
                 } else {
-                    serialWrite(gimbalSerialPort, GIMBAL_CMD_S && 0xff);
+                    serialWrite(gimbalSerialPort, GIMBAL_CMD_S & 0xff);   // TrueGlide: was "&&", which wrote 1 instead of the first header byte
                     serialWrite(gimbalSerialPort, inData);
                     gimbalParseState = GIMBAL_OP1;
                 }

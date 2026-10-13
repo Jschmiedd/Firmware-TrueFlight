@@ -84,6 +84,7 @@ typedef enum {
     BOXREADY,
     BOXLAPTIMERRESET,
     BOXWPCAPTURE,
+    BOXSPEEDER,         // TrueGlide: speeder forward transition
     CHECKBOX_ITEM_COUNT
 } boxId_e;
 
