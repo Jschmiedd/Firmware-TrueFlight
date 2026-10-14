@@ -60,9 +60,12 @@ Fait et en ligne :
 En attente de Johann :
 - Feu vert pour compiler les 629 cartes (phase 5).
 - Journaux blackbox F7 + `diff all` + description du drone (phase 3).
-- Option proposée : texte « Entering CLI Mode » du firmware au nom de TrueGlide ou en français.
 - Points juridiques pour un avocat : identifiant BTFL, réutilisation des presets, droits sur le code écrit avec une IA,
   dépôt de la marque à l'IPI.
+
+## Décisions
+
+- Ligne « Entering CLI Mode… » du firmware : laissée telle quelle (décision de Johann, 14 octobre).
 
 ## Journal des phases
 
