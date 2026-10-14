@@ -46,6 +46,24 @@ Une conversation par phase de test. Lire ce fichier, puis seulement les fichiers
 
 Noter à la fin de chaque phase, ci-dessous, ce qui est validé et ce qui reste.
 
+## État au 14 octobre 2026 (fin de la première discussion)
+
+Fait et en ligne :
+- Renommage complet TrueFlight → **TRUEGLIDE** (firmware, logiciel, vitesse, journaux, dépôts renommés par Johann).
+- 6 .hex de test (SpeedyBee F405 Mini et T-Motor Velox F7 SE, 3 modèles chacun) ; mise à jour en ligne avec contrôle SHA.
+- Logiciel : barre du haut façon ancienne Betaflight (choix du port + connexion automatique, boutons ronds
+  « Flasher le Firmware » et « Connexion » au sigle USB, rouge une fois connecté) ; logo rond refait proprement
+  (CONTROL & FLY entier, sans coins de cadre ni traits sur le bord) sur l'accueil, les icônes et la vitrine ;
+  filigrane TRUEGLIDE gris (sans disque) dans l'onglet CLI.
+- Navigation mobile corrigée (menu, défilement), dialogue Options qui ne s'ouvre plus tout seul.
+
+En attente de Johann :
+- Feu vert pour compiler les 629 cartes (phase 5).
+- Journaux blackbox F7 + `diff all` + description du drone (phase 3).
+- Option proposée : texte « Entering CLI Mode » du firmware au nom de TrueGlide ou en français.
+- Points juridiques pour un avocat : identifiant BTFL, réutilisation des presets, droits sur le code écrit avec une IA,
+  dépôt de la marque à l'IPI.
+
 ## Journal des phases
 
 - (vide)
